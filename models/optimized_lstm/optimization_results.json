@@ -1,0 +1,192 @@
+{
+  "best_accuracy": 0.6814903846153846,
+  "best_config": {
+    "name": "GRU_Deep_Fast",
+    "architecture": "gru_deep",
+    "sequence_length": 35,
+    "lstm_units": [
+      80,
+      40,
+      20
+    ],
+    "dense_units": [
+      24
+    ],
+    "dropout": 0.2,
+    "l2_reg": 0.0001,
+    "batch_size": 128,
+    "epochs": 45,
+    "learning_rate": 0.002,
+    "patience": 7,
+    "n_features": 13
+  },
+  "all_results": [
+    {
+      "accuracy": 0.6814903846153846,
+      "up_accuracy": 0.8530120481927711,
+      "down_accuracy": 0.5107913669064749,
+      "precision": 0.7060622637849945,
+      "recall": 0.6814903846153846,
+      "f1_score": 0.6719385496516831,
+      "best_val_acc": 0.7032306790351868,
+      "total_trades": 1664,
+      "profitable_trades": "1134",
+      "training_time": 43.28360390663147,
+      "epochs_trained": 27,
+      "best_threshold": 0.4,
+      "config": {
+        "name": "GRU_Deep_Fast",
+        "architecture": "gru_deep",
+        "sequence_length": 35,
+        "lstm_units": [
+          80,
+          40,
+          20
+        ],
+        "dense_units": [
+          24
+        ],
+        "dropout": 0.2,
+        "l2_reg": 0.0001,
+        "batch_size": 128,
+        "epochs": 45,
+        "learning_rate": 0.002,
+        "patience": 7,
+        "n_features": 13
+      }
+    },
+    {
+      "accuracy": 0.6644657863145258,
+      "up_accuracy": 0.5367027677496992,
+      "down_accuracy": 0.7916167664670659,
+      "precision": 0.675538052141846,
+      "recall": 0.6644657863145258,
+      "f1_score": 0.6588887750968165,
+      "best_val_acc": 0.7124624848365784,
+      "total_trades": 1666,
+      "profitable_trades": "1107",
+      "training_time": 69.23000907897949,
+      "epochs_trained": 28,
+      "best_threshold": 0.5,
+      "config": {
+        "name": "BiLSTM_Wide_Shallow",
+        "architecture": "bilstm",
+        "sequence_length": 25,
+        "lstm_units": [
+          128
+        ],
+        "dense_units": [
+          64,
+          32
+        ],
+        "dropout": 0.1,
+        "l2_reg": 1e-05,
+        "batch_size": 32,
+        "epochs": 50,
+        "learning_rate": 0.0008,
+        "patience": 8,
+        "n_features": 13
+      }
+    },
+    {
+      "accuracy": 0.6636636636636637,
+      "up_accuracy": 0.7990373044524669,
+      "down_accuracy": 0.5287769784172662,
+      "precision": 0.6768484830745201,
+      "recall": 0.6636636636636637,
+      "f1_score": 0.6574375099140608,
+      "best_val_acc": 0.7192192077636719,
+      "total_trades": 1665,
+      "profitable_trades": "1105",
+      "training_time": 107.57692503929138,
+      "epochs_trained": 31,
+      "best_threshold": 0.4,
+      "config": {
+        "name": "BiLSTM_Optimized",
+        "architecture": "bilstm",
+        "sequence_length": 30,
+        "lstm_units": [
+          96,
+          48
+        ],
+        "dense_units": [
+          32,
+          16
+        ],
+        "dropout": 0.15,
+        "l2_reg": 5e-05,
+        "batch_size": 64,
+        "epochs": 40,
+        "learning_rate": 0.0015,
+        "patience": 6,
+        "n_features": 13
+      }
+    },
+    {
+      "accuracy": 0.6532209512341962,
+      "up_accuracy": 0.5995174909529554,
+      "down_accuracy": 0.7067307692307693,
+      "precision": 0.6548943189099583,
+      "recall": 0.6532209512341962,
+      "f1_score": 0.652211365602301,
+      "best_val_acc": 0.6897590160369873,
+      "total_trades": 1661,
+      "profitable_trades": "1085",
+      "training_time": 66.79098296165466,
+      "epochs_trained": 16,
+      "best_threshold": 0.5,
+      "config": {
+        "name": "BiLSTM_Long_Sequence",
+        "architecture": "bilstm",
+        "sequence_length": 50,
+        "lstm_units": [
+          64,
+          32
+        ],
+        "dense_units": [
+          20
+        ],
+        "dropout": 0.25,
+        "l2_reg": 0.0002,
+        "batch_size": 48,
+        "epochs": 35,
+        "learning_rate": 0.0012,
+        "patience": 6,
+        "n_features": 13
+      }
+    },
+    {
+      "accuracy": 0.5063138905592303,
+      "up_accuracy": 0.05066344993968637,
+      "down_accuracy": 0.9592326139088729,
+      "precision": 0.5282907143501995,
+      "recall": 0.5063138905592303,
+      "f1_score": 0.37770478403964414,
+      "best_val_acc": 0.553383469581604,
+      "total_trades": 1663,
+      "profitable_trades": "842",
+      "training_time": 10.506155014038086,
+      "epochs_trained": 10,
+      "best_threshold": 0.5,
+      "config": {
+        "name": "CNN_BiLSTM_Hybrid",
+        "architecture": "cnn_bilstm",
+        "sequence_length": 40,
+        "lstm_units": [
+          64
+        ],
+        "dense_units": [
+          32,
+          16
+        ],
+        "dropout": 0.2,
+        "l2_reg": 0.0001,
+        "batch_size": 64,
+        "epochs": 35,
+        "learning_rate": 0.001,
+        "patience": 5,
+        "n_features": 13
+      }
+    }
+  ]
+}

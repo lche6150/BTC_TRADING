@@ -1,0 +1,20 @@
+{
+  "name": "GRU_Deep_Fast",
+  "architecture": "gru_deep",
+  "sequence_length": 35,
+  "lstm_units": [
+    80,
+    40,
+    20
+  ],
+  "dense_units": [
+    24
+  ],
+  "dropout": 0.2,
+  "l2_reg": 0.0001,
+  "batch_size": 128,
+  "epochs": 45,
+  "learning_rate": 0.002,
+  "patience": 7,
+  "n_features": 13
+}

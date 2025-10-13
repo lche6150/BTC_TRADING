@@ -1,0 +1,13 @@
+{
+  "min_confidence": 0.6,
+  "position_sizes": {
+    "low": 0.015,
+    "medium": 0.03,
+    "high": 0.05
+  },
+  "target1_multiplier": 2.0,
+  "target2_multiplier": 3.5,
+  "time_limit_max_hours": 24.0,
+  "maker_fee_rate": 0.001,
+  "taker_fee_rate": 0.001
+}
