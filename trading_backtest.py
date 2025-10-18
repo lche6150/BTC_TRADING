@@ -14,6 +14,7 @@ import json
 import pandas as pd
 import numpy as np
 import sqlite3
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict
@@ -23,6 +24,7 @@ import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import accuracy_score
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 # Add parent directory to path
@@ -261,7 +263,7 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
     threshold = 0.001
     choices = [0, 1]
 
-    retrained = True
+    retrained = False
 
     if model_path.exists() and scaler_path.exists() and meta_path.exists():
         model = load_model(model_path)
@@ -322,14 +324,33 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
             )
         ]
 
-        model.fit(
-            X_train_seq, y_train_seq,
+        val_fraction = 0.2
+        val_size = int(len(X_train_seq) * val_fraction)
+        if val_size > 0 and val_size < len(X_train_seq):
+            val_start = len(X_train_seq) - val_size
+            X_train_sub = X_train_seq[:val_start]
+            y_train_sub = y_train_seq[:val_start]
+            X_val_seq = X_train_seq[val_start:]
+            y_val_seq = y_train_seq[val_start:]
+        else:
+            X_train_sub = X_train_seq
+            y_train_sub = y_train_seq
+            X_val_seq = None
+            y_val_seq = None
+
+        fit_kwargs = dict(
+            x=X_train_sub,
+            y=y_train_sub,
             epochs=config['epochs'],
             batch_size=config['batch_size'],
-            validation_split=0.2,
             callbacks=callbacks,
-            verbose=0
+            verbose=0,
+            shuffle=False,
         )
+        if X_val_seq is not None and len(X_val_seq) > 0:
+            fit_kwargs["validation_data"] = (X_val_seq, y_val_seq)
+
+        model.fit(**fit_kwargs)
 
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         model.save(model_path)
@@ -338,6 +359,15 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
 
         retrained = True
         best_threshold = 0.5
+        if X_val_seq is not None and len(X_val_seq) > 0:
+            val_probs = model.predict(X_val_seq, verbose=0).flatten()
+            best_val_acc = 0.0
+            for thresh in np.arange(0.4, 0.7, 0.05):
+                val_preds = (val_probs > thresh).astype(int)
+                acc = accuracy_score(y_val_seq, val_preds)
+                if acc > best_val_acc:
+                    best_val_acc = acc
+                    best_threshold = float(thresh)
 
     # Evaluation targets for metrics
     test_future_returns = test_features['close'].pct_change(periods=future_periods).shift(-future_periods)
@@ -379,34 +409,25 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
     predictions_df['confidence'] = predictions_df[['prob_up', 'prob_down']].max(axis=1)
     predictions_df['datetime'] = test_features.loc[prediction_indices, 'datetime'].values
 
-    metrics: Dict[str, float] = {'retrained': retrained}
+    metrics: Dict[str, float] = {'retrained': retrained, 'best_threshold': float(best_threshold)}
     if len(X_test_eval_seq) > 0:
-        from sklearn.metrics import accuracy_score
-
         eval_indices = X_test_eval_scaled.index[sequence_length:]
         eval_probs = predictions_df.loc[eval_indices, 'prob_up']
 
-        thresholds = np.arange(0.4, 0.7, 0.05)
-        best_acc = 0.0
-        for thresh in thresholds:
-            preds_temp = (eval_probs > thresh).astype(int)
-            acc_temp = accuracy_score(y_test_eval_seq, preds_temp)
-            if acc_temp > best_acc:
-                best_acc = acc_temp
-                best_threshold = float(thresh)
-
-        metrics['accuracy'] = float(best_acc)
-        metrics['best_threshold'] = float(best_threshold)
+        eval_preds = (eval_probs > best_threshold).astype(int)
+        metrics['accuracy'] = float(accuracy_score(y_test_eval_seq, eval_preds))
         metrics['eval_samples'] = int(len(y_test_eval_seq))
 
         high_conf_mask = predictions_df.loc[eval_indices, 'confidence'] >= 0.55
         if high_conf_mask.any():
+            mask_arr = high_conf_mask.values
+            high_conf_preds = (eval_probs[high_conf_mask] > best_threshold).astype(int)
             high_conf_acc = accuracy_score(
-                y_test_eval_seq[high_conf_mask.values],
-                (eval_probs[high_conf_mask] > best_threshold).astype(int)
+                y_test_eval_seq[mask_arr],
+                high_conf_preds
             )
             metrics['high_confidence_accuracy'] = float(high_conf_acc)
-            metrics['high_confidence_samples'] = int(high_conf_mask.sum())
+            metrics['high_confidence_samples'] = int(mask_arr.sum())
 
     meta = {
         'available_features': available_features,
@@ -1090,6 +1111,18 @@ def create_figure1_style_chart(data, trades_log, all_signals, date_range_label: 
 
     return fig
 
+
+def cleanup_backtest_artifacts():
+    """Remove cached backtest GRU artifacts after the run completes."""
+    artifacts_dir = Path("models/gru_backtest")
+    if artifacts_dir.exists():
+        try:
+            shutil.rmtree(artifacts_dir)
+            print(f"🧹 Removed backtest artifacts at {artifacts_dir}")
+        except Exception as exc:
+            print(f"⚠️ Failed to remove backtest artifacts at {artifacts_dir}: {exc}")
+
+
 def main():
     """Generate Figure_1.png style visualization"""
     print("🎨 GENERATING FIGURE_1.PNG STYLE VISUALIZATION")
@@ -1126,6 +1159,7 @@ def main():
     args.log_path = log_path
     args.figure_path = figure_path
 
+    success = False
     try:
         # Load data and generate signals
         data = load_backtest_data(args.start_date, args.end_date)
@@ -1197,13 +1231,16 @@ def main():
         print(f"📄 Performance metrics: {metrics_path}")
 
         print("\n✅ Figure_1.png style visualization completed!")
-        return True
+        success = True
 
     except Exception as e:
         print(f"❌ Error generating visualization: {e}")
         import traceback
         traceback.print_exc()
-        return False
+    finally:
+        cleanup_backtest_artifacts()
+
+    return success
 
 if __name__ == "__main__":
     success = main()

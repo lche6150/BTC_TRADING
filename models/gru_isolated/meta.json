@@ -9,12 +9,17 @@
     "macd_signal",
     "hl_ratio",
     "momentum_10",
+    "volatility",
     "atr_normalized",
     "williams_r",
     "stoch_k",
     "cci"
   ],
   "sequence_length": 35,
-  "best_threshold": 0.5,
-  "last_trained": "2025-10-13T02:54:36.028273Z"
+  "best_threshold": 0.45,
+  "created_at": "2025-10-16T07:51:24.721111Z",
+  "train_database": "data/isolated/isolated_train.db",
+  "train_rows": 84440,
+  "train_start": "2022-10-10T18:00:00",
+  "train_end": "2025-03-08T09:00:00"
 }

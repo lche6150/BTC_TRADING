@@ -1,0 +1,10 @@
+{
+  "actions": {
+    "EXIT": 13891,
+    "REJECTED": 11723,
+    "ACCEPTED": 9055
+  },
+  "total_exits": 13891,
+  "total_realized_pnl": 16174.625415641658,
+  "win_rate": 0.5983730472968108
+}
