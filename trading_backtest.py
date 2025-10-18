@@ -277,6 +277,7 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
             raise ValueError("No common features between saved model and current dataset")
         sequence_length = int(meta.get('sequence_length', load_optimized_config()['sequence_length']))
         best_threshold = float(meta.get('best_threshold', 0.5))
+        retrained = False
     else:
         config = load_optimized_config()
         sequence_length = config['sequence_length']
@@ -304,6 +305,29 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
         X_train_seq, y_train_seq = create_sequences(X_train_scaled, y_train_clean, sequence_length)
         model = create_gru_model(config, X_train_seq.shape[2])
 
+        total_sequences = len(X_train_seq)
+        if total_sequences == 0:
+            raise ValueError("Insufficient sequence data after cleaning to train GRU model")
+
+        val_size = max(1, int(total_sequences * 0.2)) if total_sequences > 1 else 0
+        train_size = total_sequences - val_size
+
+        if train_size <= 0:
+            train_size = total_sequences
+            val_size = 0
+
+        X_train_sequences = X_train_seq[:train_size]
+        y_train_sequences = y_train_seq[:train_size]
+
+        if val_size > 0:
+            X_val_sequences = X_train_seq[train_size:]
+            y_val_sequences = y_train_seq[train_size:]
+            validation_data = (X_val_sequences, y_val_sequences)
+        else:
+            X_val_sequences = np.empty((0,))
+            y_val_sequences = np.empty((0,))
+            validation_data = None
+
         callbacks = [
             EarlyStopping(
                 monitor='val_accuracy',
@@ -322,22 +346,38 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
             )
         ]
 
-        model.fit(
-            X_train_seq, y_train_seq,
+        fit_kwargs = dict(
+            x=X_train_sequences,
+            y=y_train_sequences,
             epochs=config['epochs'],
             batch_size=config['batch_size'],
-            validation_split=0.2,
             callbacks=callbacks,
             verbose=0
         )
+        if validation_data and len(X_val_sequences) > 0:
+            fit_kwargs["validation_data"] = validation_data
+        else:
+            fit_kwargs["validation_split"] = 0.0
+
+        model.fit(**fit_kwargs)
+
+        # Determine best threshold using validation sequences
+        best_threshold = 0.5
+        if validation_data and len(X_val_sequences) > 0:
+            val_probs = model.predict(X_val_sequences, verbose=0).flatten()
+            thresholds = np.arange(0.4, 0.7, 0.05)
+            best_acc = -1.0
+            for thresh in thresholds:
+                preds_temp = (val_probs > thresh).astype(int)
+                acc_temp = (preds_temp == y_val_sequences).mean()
+                if acc_temp > best_acc:
+                    best_acc = acc_temp
+                    best_threshold = float(thresh)
 
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         model.save(model_path)
         with scaler_path.open('wb') as f:
             pickle.dump(scaler, f)
-
-        retrained = True
-        best_threshold = 0.5
 
     # Evaluation targets for metrics
     test_future_returns = test_features['close'].pct_change(periods=future_periods).shift(-future_periods)
@@ -386,15 +426,8 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
         eval_indices = X_test_eval_scaled.index[sequence_length:]
         eval_probs = predictions_df.loc[eval_indices, 'prob_up']
 
-        thresholds = np.arange(0.4, 0.7, 0.05)
-        best_acc = 0.0
-        for thresh in thresholds:
-            preds_temp = (eval_probs > thresh).astype(int)
-            acc_temp = accuracy_score(y_test_eval_seq, preds_temp)
-            if acc_temp > best_acc:
-                best_acc = acc_temp
-                best_threshold = float(thresh)
-
+        preds_eval = (eval_probs > best_threshold).astype(int)
+        best_acc = accuracy_score(y_test_eval_seq, preds_eval)
         metrics['accuracy'] = float(best_acc)
         metrics['best_threshold'] = float(best_threshold)
         metrics['eval_samples'] = int(len(y_test_eval_seq))
@@ -407,6 +440,8 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
             )
             metrics['high_confidence_accuracy'] = float(high_conf_acc)
             metrics['high_confidence_samples'] = int(high_conf_mask.sum())
+    else:
+        metrics['best_threshold'] = float(best_threshold)
 
     meta = {
         'available_features': available_features,

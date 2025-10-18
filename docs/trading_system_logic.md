@@ -22,8 +22,8 @@ The trading engine receives the raw direction and base confidence. A trade is on
    - Prevents opening positions when risk controls are active (e.g. portfolio heat above cap).
 
 2. **Context filters** – `_apply_entry_filters`
-   - Requires at least 0.8× 24 h average volume (so signals with nearly zero liquidity are skipped).
-   - Rejects bars with extreme volatility (> 1.5× baseline threshold).
+   - 15 m volume must be ≥ `volume_filter_ratio` (0.8) × the 24 h average; thin-liquidity bars are skipped.
+   - 1 h volatility must be below `volatility_threshold * entry_volatility_multiplier` (2.5 × 1.5 ≈ 3.75 %). Anything above the cap is rejected out of hand.
 
 3. **Confidence adjustment** – `_calculate_adjusted_confidence_from_data`
    - Adds bonuses (e.g. trend alignment, > 2× volume) and penalties (off-hours, elevated volatility, news flag).
@@ -43,9 +43,9 @@ If every check passes, `_create_position` instantiates a `TradingPosition` and t
 Every position stores the entry snapshot plus dynamic safeguards:
 
 - **Volatility-aware stop & targets**
-  - `stop_pct` = `max(0.20 %, 4 × volatility_1h)`
-  - `target1_pct` = `1.75 × stop_pct` (close 50 %), `target2_pct` = `3 × stop_pct` (close balance)
-  - Break-even and trailing thresholds scale with the same base values (`break_even_trigger_pct`, `trailing_trigger_pct`).
+  - `stop_pct` = `clip(|volatility_1h|, stop_volatility_low=0.003, stop_volatility_high=0.02)` → a 0.3 % to 2 % band.
+  - Targets use the config multipliers (`target1_multiplier`, `target2_multiplier`; defaults 1.75 and 3.0, live config 2.0 and 3.5). Target 1 always closes 50 % of size; Target 2 closes the remainder.
+  - `break_even_multiplier = 2.0`, `trailing_trigger_multiplier = 3.5`, and `trailing_offset_multiplier = 0.75` inherit from the same stop percentage.
 
 - **State tracking**
   - Records realized/unrealized P&L, run-up/run-down, remaining position size, and “win credit” (used when partial profits are taken).
@@ -64,9 +64,9 @@ On every bar:
    - Target 2 closes the remainder.
 
 3. **Time-based rules** – `_check_exit_conditions`
-   - ≥ 6 h with minimal P&L → close 50 %.
-   - ≥ 18 h with sub-stop_pct gains → close 75 %.
-   - ≥ 30 h hard limit → force close.
+   - After 6 h with |unrealized| ≤ 0.5 × stop_pct, the position is now closed outright (`TIME_LIMIT_FLAT`) to avoid churning partial exits.
+   - After 18 h with unrealized gains still below stop_pct, the position is closed (`TIME_LIMIT_SLOW_PROGRESS`).
+   - A hard cap (`time_limit_max_hours`, default 30 h) force-closes any stragglers.
 
 4. **Order execution** – `_close_position`
    - Applies per-exit percentage, updates capital/P&L, logs the reason.
@@ -77,12 +77,12 @@ On every bar:
 
 ## 5. Output & Metrics
 
-`trading_backtest.py` collects every open/close event to:
+`trading_backtest.py` mirrors the live loop:
 
-- Generate the detailed trade log (`create_trading_log`).
-- Render the 3-panel visualization (entries/exits, signal confidence, cumulative P&L).
-- Export JSON metrics from `get_performance_summary()` showing realized P&L, win rate, drawdown controls, and open positions.
+- Every signal is logged with `status`, `stage`, and `reason` (matching the paper-trader diagnostics).
+- The trade log and Figure 1 chart are generated from the same open/close stream the live loop writes into `paper_trades.log`.
+- Metrics from `get_performance_summary()` (P&L, win rate, drawdown flags, active count) are exported alongside the signal log so backtests and replays line up.
 
 ## Summary
 
-The system fuses model confidence, market context, and volatility-aware risk management to produce trades. Entry decisions are conservative (multi-stage filters), position size is driven by confidence and drawdown status, and exits blend price targets, adaptive stops, and time-based hygiene. Together, these rules aim to translate predictive accuracy into stable trading performance while keeping risk within predefined thresholds.
+Both backtest and paper trader now share an identical confidence- and volatility-aware engine: multistage signal filters, adaptive sizing tied to drawdown state, portfolio-heat enforcement, dynamic stops/targets, and strict time hygiene. The richer logging makes it easy to trace why signals were accepted or rejected, and the validation-based threshold keeps the GRU’s performance honest between historical and live runs.
