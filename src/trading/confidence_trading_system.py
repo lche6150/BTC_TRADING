@@ -197,6 +197,7 @@ class ComprehensiveTradingSystem:
         "time_limit_max_hours": 30.0,
         "maker_fee_rate": 0.001,
         "taker_fee_rate": 0.001,
+        "stop_reentry_cooldown_minutes": 30,
     }
 
     @classmethod
@@ -276,6 +277,10 @@ class ComprehensiveTradingSystem:
 
         self.maker_fee_rate = self.config["maker_fee_rate"]
         self.taker_fee_rate = self.config["taker_fee_rate"]
+
+        cooldown_minutes = max(0, float(self.config.get("stop_reentry_cooldown_minutes", 0)))
+        self.stop_reentry_cooldown = timedelta(minutes=cooldown_minutes)
+        self.last_stop_loss_time = {"UP": None, "DOWN": None}
 
         # Time management
         self.time_limit_flat_hours = self.config["time_limit_flat_hours"]

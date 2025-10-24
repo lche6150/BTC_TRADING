@@ -14,6 +14,7 @@ import json
 import pandas as pd
 import numpy as np
 import sqlite3
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict
@@ -38,7 +39,6 @@ from scripts.gap_test_real_data import (
     create_gru_model,
     create_sequences,
 )
-from tensorflow.keras.models import load_model
 import pickle
 
 DEFAULT_LOG_FILENAME = "trading_log.txt"
@@ -54,6 +54,14 @@ MODEL_FEATURES = [
     'volatility', 'volatility_1h', 'atr_normalized',
     'williams_r', 'stoch_k', 'cci', 'adx', 'roc'
 ]
+
+
+def _purge_gru_backtest_artifacts() -> None:
+    """Remove cached GRU artifacts so each backtest retrains from scratch."""
+    artifacts_dir = Path('models/gru_backtest')
+    if artifacts_dir.exists():
+        shutil.rmtree(artifacts_dir)
+
 
 def _to_timestamp_ms(date_str: str, inclusive_end: bool = False) -> int:
     """Convert a date string to a Binance-compatible millisecond timestamp."""
@@ -225,10 +233,8 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
     start_dt = pd.to_datetime(start_date)
     end_dt = pd.to_datetime(end_date)
 
-    artifacts_dir = Path('models/gru_backtest')
-    model_path = artifacts_dir / 'model.keras'
-    scaler_path = artifacts_dir / 'scaler.pkl'
-    meta_path = artifacts_dir / 'meta.json'
+    # Remove any cached GRU artifacts so this backtest retrains from scratch.
+    _purge_gru_backtest_artifacts()
 
     db = TradingDatabase()
     df = db.get_ohlcv_data("BTCUSDT", "15m")
@@ -263,121 +269,100 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
 
     retrained = True
 
-    if model_path.exists() and scaler_path.exists() and meta_path.exists():
-        model = load_model(model_path)
-        with scaler_path.open('rb') as f:
-            scaler = pickle.load(f)
-        with meta_path.open('r') as f:
-            meta = json.load(f)
-        saved_features = meta.get('available_features', available_features)
-        if set(saved_features) != set(available_features):
-            print("⚠️ 训练好的特征集合与当前数据不一致，使用交集")
-        available_features = [f for f in saved_features if f in available_features]
-        if not available_features:
-            raise ValueError("No common features between saved model and current dataset")
-        sequence_length = int(meta.get('sequence_length', load_optimized_config()['sequence_length']))
-        best_threshold = float(meta.get('best_threshold', 0.5))
-        retrained = False
+    config = load_optimized_config()
+    sequence_length = config['sequence_length']
+
+    train_future_returns = train_features['close'].pct_change(periods=future_periods).shift(-future_periods)
+    train_clear_movements = np.select([
+        train_future_returns <= -threshold,
+        train_future_returns >= threshold,
+    ], choices, default=-1)
+    train_sideways_mask = train_clear_movements != -1
+    train_targets = pd.Series(train_clear_movements, index=train_features.index)[train_sideways_mask]
+
+    X_train_raw = train_features[available_features].loc[train_targets.index]
+    train_valid_mask = ~X_train_raw.isnull().any(axis=1)
+    X_train_clean = X_train_raw[train_valid_mask]
+    y_train_clean = train_targets.loc[train_valid_mask]
+
+    scaler = MinMaxScaler()
+    X_train_scaled = pd.DataFrame(
+        scaler.fit_transform(X_train_clean),
+        columns=available_features,
+        index=X_train_clean.index
+    )
+
+    X_train_seq, y_train_seq = create_sequences(X_train_scaled, y_train_clean, sequence_length)
+    model = create_gru_model(config, X_train_seq.shape[2])
+
+    total_sequences = len(X_train_seq)
+    if total_sequences == 0:
+        raise ValueError("Insufficient sequence data after cleaning to train GRU model")
+
+    val_size = max(1, int(total_sequences * 0.2)) if total_sequences > 1 else 0
+    train_size = total_sequences - val_size
+
+    if train_size <= 0:
+        train_size = total_sequences
+        val_size = 0
+
+    X_train_sequences = X_train_seq[:train_size]
+    y_train_sequences = y_train_seq[:train_size]
+
+    if val_size > 0:
+        X_val_sequences = X_train_seq[train_size:]
+        y_val_sequences = y_train_seq[train_size:]
+        validation_data = (X_val_sequences, y_val_sequences)
     else:
-        config = load_optimized_config()
-        sequence_length = config['sequence_length']
+        X_val_sequences = np.empty((0,))
+        y_val_sequences = np.empty((0,))
+        validation_data = None
 
-        train_future_returns = train_features['close'].pct_change(periods=future_periods).shift(-future_periods)
-        train_clear_movements = np.select([
-            train_future_returns <= -threshold,
-            train_future_returns >= threshold,
-        ], choices, default=-1)
-        train_sideways_mask = train_clear_movements != -1
-        train_targets = pd.Series(train_clear_movements, index=train_features.index)[train_sideways_mask]
-
-        X_train_raw = train_features[available_features].loc[train_targets.index]
-        train_valid_mask = ~X_train_raw.isnull().any(axis=1)
-        X_train_clean = X_train_raw[train_valid_mask]
-        y_train_clean = train_targets.loc[train_valid_mask]
-
-        scaler = MinMaxScaler()
-        X_train_scaled = pd.DataFrame(
-            scaler.fit_transform(X_train_clean),
-            columns=available_features,
-            index=X_train_clean.index
+    callbacks = [
+        EarlyStopping(
+            monitor='val_accuracy',
+            patience=config['patience'],
+            restore_best_weights=True,
+            verbose=0,
+            mode='max'
+        ),
+        ReduceLROnPlateau(
+            monitor='val_accuracy',
+            factor=0.7,
+            patience=max(1, config['patience'] // 2),
+            min_lr=1e-6,
+            verbose=0,
+            mode='max'
         )
+    ]
 
-        X_train_seq, y_train_seq = create_sequences(X_train_scaled, y_train_clean, sequence_length)
-        model = create_gru_model(config, X_train_seq.shape[2])
+    fit_kwargs = dict(
+        x=X_train_sequences,
+        y=y_train_sequences,
+        epochs=config['epochs'],
+        batch_size=config['batch_size'],
+        callbacks=callbacks,
+        verbose=0
+    )
+    if validation_data and len(X_val_sequences) > 0:
+        fit_kwargs["validation_data"] = validation_data
+    else:
+        fit_kwargs["validation_split"] = 0.0
 
-        total_sequences = len(X_train_seq)
-        if total_sequences == 0:
-            raise ValueError("Insufficient sequence data after cleaning to train GRU model")
+    model.fit(**fit_kwargs)
 
-        val_size = max(1, int(total_sequences * 0.2)) if total_sequences > 1 else 0
-        train_size = total_sequences - val_size
-
-        if train_size <= 0:
-            train_size = total_sequences
-            val_size = 0
-
-        X_train_sequences = X_train_seq[:train_size]
-        y_train_sequences = y_train_seq[:train_size]
-
-        if val_size > 0:
-            X_val_sequences = X_train_seq[train_size:]
-            y_val_sequences = y_train_seq[train_size:]
-            validation_data = (X_val_sequences, y_val_sequences)
-        else:
-            X_val_sequences = np.empty((0,))
-            y_val_sequences = np.empty((0,))
-            validation_data = None
-
-        callbacks = [
-            EarlyStopping(
-                monitor='val_accuracy',
-                patience=config['patience'],
-                restore_best_weights=True,
-                verbose=0,
-                mode='max'
-            ),
-            ReduceLROnPlateau(
-                monitor='val_accuracy',
-                factor=0.7,
-                patience=max(1, config['patience'] // 2),
-                min_lr=1e-6,
-                verbose=0,
-                mode='max'
-            )
-        ]
-
-        fit_kwargs = dict(
-            x=X_train_sequences,
-            y=y_train_sequences,
-            epochs=config['epochs'],
-            batch_size=config['batch_size'],
-            callbacks=callbacks,
-            verbose=0
-        )
-        if validation_data and len(X_val_sequences) > 0:
-            fit_kwargs["validation_data"] = validation_data
-        else:
-            fit_kwargs["validation_split"] = 0.0
-
-        model.fit(**fit_kwargs)
-
-        # Determine best threshold using validation sequences
-        best_threshold = 0.5
-        if validation_data and len(X_val_sequences) > 0:
-            val_probs = model.predict(X_val_sequences, verbose=0).flatten()
-            thresholds = np.arange(0.4, 0.7, 0.05)
-            best_acc = -1.0
-            for thresh in thresholds:
-                preds_temp = (val_probs > thresh).astype(int)
-                acc_temp = (preds_temp == y_val_sequences).mean()
-                if acc_temp > best_acc:
-                    best_acc = acc_temp
-                    best_threshold = float(thresh)
-
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-        model.save(model_path)
-        with scaler_path.open('wb') as f:
-            pickle.dump(scaler, f)
+    # Determine best threshold using validation sequences
+    best_threshold = 0.5
+    if validation_data and len(X_val_sequences) > 0:
+        val_probs = model.predict(X_val_sequences, verbose=0).flatten()
+        thresholds = np.arange(0.4, 0.7, 0.05)
+        best_acc = -1.0
+        for thresh in thresholds:
+            preds_temp = (val_probs > thresh).astype(int)
+            acc_temp = (preds_temp == y_val_sequences).mean()
+            if acc_temp > best_acc:
+                best_acc = acc_temp
+                best_threshold = float(thresh)
 
     # Evaluation targets for metrics
     test_future_returns = test_features['close'].pct_change(periods=future_periods).shift(-future_periods)
@@ -442,16 +427,6 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
             metrics['high_confidence_samples'] = int(high_conf_mask.sum())
     else:
         metrics['best_threshold'] = float(best_threshold)
-
-    meta = {
-        'available_features': available_features,
-        'sequence_length': sequence_length,
-        'best_threshold': best_threshold,
-        'last_trained': datetime.utcnow().isoformat() + 'Z'
-    }
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    with meta_path.open('w') as f:
-        json.dump(meta, f, indent=2)
 
     return predictions_df, metrics
 
@@ -1161,6 +1136,7 @@ def main():
     args.log_path = log_path
     args.figure_path = figure_path
 
+    success = False
     try:
         # Load data and generate signals
         data = load_backtest_data(args.start_date, args.end_date)
@@ -1232,13 +1208,17 @@ def main():
         print(f"📄 Performance metrics: {metrics_path}")
 
         print("\n✅ Figure_1.png style visualization completed!")
-        return True
+        success = True
 
     except Exception as e:
         print(f"❌ Error generating visualization: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        success = False
+    finally:
+        _purge_gru_backtest_artifacts()
+
+    return success
 
 if __name__ == "__main__":
     success = main()

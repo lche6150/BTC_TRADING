@@ -8,9 +8,10 @@ import os
 import shutil
 import sys
 import time
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -33,6 +34,7 @@ DEFAULT_SYMBOL = "BTCUSDT"
 DEFAULT_INTERVAL = "15m"
 DEFAULT_LOOKBACK_DAYS = 20
 MAX_HISTORY_ROWS = 6000
+EVALUATION_WINDOW_MINUTES = 90
 
 
 def parse_args() -> argparse.Namespace:
@@ -164,11 +166,93 @@ def log_event(log_file, event_type: str, payload: Dict[str, any]) -> None:
     log_file.flush()
 
 
-def log_signal_decision(signal_log_file, payload: Dict[str, any]) -> None:
-    if signal_log_file is None:
+def log_signal_decision(signal_log_path: Path, payload: Dict[str, Any]) -> None:
+    if signal_log_path is None:
         return
-    signal_log_file.write(json.dumps(payload, default=str) + "\n")
-    signal_log_file.flush()
+    with signal_log_path.open('a') as f:
+        f.write(json.dumps(payload, default=str) + "\n")
+
+
+def register_pending_evaluation(pending_list: List[Dict[str, Any]], record: Dict[str, Any]) -> None:
+    pending_list.append(record)
+
+
+def update_signal_log_evaluation(
+    signal_log_path: Path,
+    log_id: str,
+    status: str,
+    evaluation_time: pd.Timestamp,
+    evaluation_price: float,
+) -> None:
+    if not signal_log_path.exists():
+        return
+
+    lines = signal_log_path.read_text().splitlines()
+    updated = False
+
+    for idx, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if record.get("log_id") == log_id:
+            record["evaluation_status"] = status
+            record["evaluation_timestamp"] = evaluation_time.isoformat()
+            record["evaluation_price"] = evaluation_price
+            lines[idx] = json.dumps(record, default=str)
+            updated = True
+            break
+
+    if updated:
+        signal_log_path.write_text("\n".join(lines) + ("\n" if lines else ""))
+
+
+def evaluate_pending_signals(
+    pending_list: List[Dict[str, Any]],
+    price_df: pd.DataFrame,
+    signal_log_path: Path,
+) -> None:
+    if not pending_list or price_df.empty:
+        return
+
+    df_sorted = price_df.sort_values('datetime')
+    max_timestamp = df_sorted['datetime'].iloc[-1]
+
+    remaining: List[Dict[str, Any]] = []
+
+    for item in pending_list:
+        deadline: datetime = item['deadline']
+        if max_timestamp < pd.Timestamp(deadline):
+            remaining.append(item)
+            continue
+
+        future_rows = df_sorted[df_sorted['datetime'] >= pd.Timestamp(deadline)]
+        if future_rows.empty:
+            remaining.append(item)
+            continue
+
+        future_row = future_rows.iloc[0]
+        evaluation_price = float(future_row['close'])
+        direction = item['direction']
+        entry_price = item['entry_price']
+
+        if direction == 'UP':
+            status = 'hit' if evaluation_price >= entry_price else 'miss'
+        else:
+            status = 'hit' if evaluation_price <= entry_price else 'miss'
+
+        update_signal_log_evaluation(
+            signal_log_path,
+            item['log_id'],
+            status,
+            future_row['datetime'],
+            evaluation_price,
+        )
+
+    # Only keep items that still await evaluation
+    pending_list[:] = remaining
 
 
 def sync_signal_model_artifacts() -> bool:
@@ -230,7 +314,9 @@ def process_new_signal(system: ComprehensiveTradingSystem,
                         prob_info: Dict[str, float],
                         threshold: float,
                         log_file,
-                        signal_log_file) -> None:
+                        signal_log_path: Path,
+                        pending_evaluations: List[Dict[str, Any]],
+                        evaluation_window_minutes: int) -> None:
     current_time = pd.to_datetime(signal_row['datetime'])
     current_price = float(signal_row['close'])
 
@@ -254,6 +340,9 @@ def process_new_signal(system: ComprehensiveTradingSystem,
     direction = 'UP' if prob_info['prob_up'] >= threshold else 'DOWN'
     confidence = prob_info['confidence']
 
+    evaluation_deadline = current_time.to_pydatetime() + timedelta(minutes=evaluation_window_minutes)
+    log_entry_id = f"{current_time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
     base_payload = {
         "signal_timestamp": current_time.isoformat(),
         "decision_threshold": threshold,
@@ -266,7 +355,25 @@ def process_new_signal(system: ComprehensiveTradingSystem,
         "avg_volume_24h": float(signal_row.get('volume_ma', signal_row['volume'])),
         "volatility_1h": float(signal_row.get('volatility_1h', signal_row.get('volatility', 0.0))),
         "is_high_volume_hours": is_high_volume_hours,
+        "log_id": log_entry_id,
+        "evaluation_status": "pending",
+        "evaluation_deadline": evaluation_deadline.isoformat(),
     }
+
+    pending_record = {
+        "log_id": log_entry_id,
+        "direction": direction,
+        "entry_price": current_price,
+        "deadline": evaluation_deadline,
+    }
+    pending_registered = False
+
+    def log_and_register(payload: Dict[str, Any]) -> None:
+        nonlocal pending_registered
+        log_signal_decision(signal_log_path, payload)
+        if not pending_registered:
+            register_pending_evaluation(pending_evaluations, pending_record.copy())
+            pending_registered = True
 
     if confidence < system.min_confidence:
         payload = {
@@ -277,7 +384,7 @@ def process_new_signal(system: ComprehensiveTradingSystem,
             "min_confidence": system.min_confidence,
         }
         system.last_signal_decision = payload.copy()
-        log_signal_decision(signal_log_file, payload)
+        log_and_register(payload)
         return
 
     # Update existing positions first with the latest price
@@ -325,7 +432,7 @@ def process_new_signal(system: ComprehensiveTradingSystem,
         payload.setdefault("status", "rejected")
         payload.setdefault("reason", "rejected_without_detail")
 
-    log_signal_decision(signal_log_file, payload)
+    log_and_register(payload)
 
 
 def main() -> None:
@@ -339,7 +446,6 @@ def main() -> None:
 
     run_timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     signal_log_path = results_dir / f"paper_log_{run_timestamp}.txt"
-    signal_log_file = signal_log_path.open('a')
     print(f"📝 Signal log: {signal_log_path}")
 
     client = get_client(args.testnet)
@@ -373,6 +479,7 @@ def main() -> None:
     last_processed_ts = None
     decision_threshold = model.best_threshold
     iteration = 0
+    pending_evaluations: List[Dict[str, Any]] = []
 
     log_file = args.output.open('a') if args.output else None
 
@@ -404,12 +511,29 @@ def main() -> None:
 
                 if delayed_fetch:
                     last_processed_ts = int(raw_df['open_time'].iloc[-1])
+                    for row in new_klines.itertuples(index=False):
+                        ts = pd.to_datetime(getattr(row, 'datetime')).isoformat()
+                        skip_payload = {
+                            "signal_timestamp": ts,
+                            "price": float(getattr(row, 'close', np.nan)),
+                            "status": "skipped",
+                            "stage": "delayed_kline_fetch",
+                            "reason": "delayed_kline_fetch",
+                        }
+                        log_signal_decision(signal_log_path, skip_payload)
                     print("⚠️  Delayed kline fetch resolved after retries. "
                           "Skipping signal processing for this batch.")
                     time.sleep(args.sleep)
                     continue
             else:
                 if delayed_fetch:
+                    skip_payload = {
+                        "signal_timestamp": datetime.utcnow().isoformat() + "Z",
+                        "status": "skipped",
+                        "stage": "delayed_kline_fetch",
+                        "reason": "fetch_failed_after_retries",
+                    }
+                    log_signal_decision(signal_log_path, skip_payload)
                     print("⚠️  Kline fetch failed after retries; will try again next cycle.")
                     time.sleep(args.sleep)
                     continue
@@ -428,9 +552,20 @@ def main() -> None:
                 timestamp_ms = int(timestamp_dt.value // 1_000_000)
                 if last_processed_ts and timestamp_ms <= last_processed_ts:
                     continue
-                process_new_signal(system, row, prob_info, decision_threshold, log_file, signal_log_file)
+                process_new_signal(
+                    system,
+                    row,
+                    prob_info,
+                    decision_threshold,
+                    log_file,
+                    signal_log_path,
+                    pending_evaluations,
+                    EVALUATION_WINDOW_MINUTES,
+                )
                 last_processed_ts = timestamp_ms
                 processed += 1
+
+            evaluate_pending_signals(pending_evaluations, raw_df, signal_log_path)
 
             metrics = system.get_performance_summary()
             print(f"迭代 {iteration}: Equity={metrics['portfolio_value']:.2f} WinRate={metrics['win_rate']*100:.2f}% Trades={metrics['total_trades']}")
@@ -452,8 +587,6 @@ def main() -> None:
     finally:
         if log_file:
             log_file.close()
-        if signal_log_file:
-            signal_log_file.close()
 
     summary_path = results_dir / "paper_trading_summary.json"
     with summary_path.open('w') as f:
