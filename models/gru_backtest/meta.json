@@ -1,0 +1,19 @@
+{
+  "available_features": [
+    "rsi_14",
+    "rsi_14_1h",
+    "rsi_14_4h",
+    "bb_position",
+    "bb_position_1h",
+    "bb_position_4h",
+    "macd_signal",
+    "hl_ratio",
+    "momentum_10",
+    "atr_normalized",
+    "williams_r",
+    "stoch_k",
+    "cci"
+  ],
+  "sequence_length": 35,
+  "best_threshold": 0.5
+}

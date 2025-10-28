@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Tuple, Optional
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 import json
 from dataclasses import dataclass
@@ -197,7 +197,7 @@ class ComprehensiveTradingSystem:
         "time_limit_max_hours": 30.0,
         "maker_fee_rate": 0.001,
         "taker_fee_rate": 0.001,
-        "stop_reentry_cooldown_minutes": 30,
+        "stop_reentry_cooldown_minutes": 45,
     }
 
     @classmethod
@@ -344,6 +344,19 @@ class ComprehensiveTradingSystem:
                 })
                 if filter_details:
                     decision_context["details"] = filter_details
+                self.last_signal_decision = decision_context
+                return None
+
+            # 3. Enforce stop-loss cooldown to prevent immediate re-entries.
+            blocked, minutes_remaining = self._check_stop_loss_cooldown(direction, signal_time)
+            if blocked:
+                decision_context.update({
+                    "status": "rejected",
+                    "stage": "stop_loss_cooldown",
+                    "reason": "stop_loss_cooldown_active",
+                    "cooldown_minutes": self.stop_reentry_cooldown.total_seconds() / 60.0,
+                    "minutes_remaining": minutes_remaining,
+                })
                 self.last_signal_decision = decision_context
                 return None
 
@@ -831,6 +844,9 @@ class ComprehensiveTradingSystem:
         self.logger.info(f"Position update: {position.signal_id} {exit_reason} "
                         f"closed {close_percentage:.0%} P&L=${realized_pnl:.2f}")
 
+        if "STOP" in exit_reason.upper():
+            self._record_stop_loss(position.direction, current_time)
+
         return update_info
 
     def _get_close_percentage(self, exit_reason: str, position: TradingPosition) -> float:
@@ -891,6 +907,48 @@ class ComprehensiveTradingSystem:
                 self.drawdown_5pct_active = False
                 self.drawdown_10pct_active = False
                 self.logger.info("Drawdown controls reset - normal position sizing restored")
+
+    # ------------------------------------------------------------------
+    # Stop-loss re-entry cooldown helpers
+    # ------------------------------------------------------------------
+
+    def _normalize_timestamp(self, value: Optional[datetime]) -> Optional[datetime]:
+        if value is None:
+            return None
+        if isinstance(value, pd.Timestamp):
+            ts = value.tz_convert("UTC") if value.tzinfo else value.tz_localize("UTC")
+            return ts.to_pydatetime().replace(tzinfo=None)
+        if value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value
+
+    def _check_stop_loss_cooldown(self, direction: str, signal_time: datetime) -> Tuple[bool, Optional[float]]:
+        """Return (blocked, minutes_remaining) if signal is inside the post-stop cooldown."""
+        if self.stop_reentry_cooldown <= timedelta(0):
+            return False, None
+
+        last_event = self.last_stop_loss_time.get(direction)
+        if last_event is None:
+            return False, None
+
+        normalized_signal = self._normalize_timestamp(signal_time)
+        normalized_last = self._normalize_timestamp(last_event)
+
+        if normalized_signal is None or normalized_last is None:
+            return False, None
+
+        elapsed = normalized_signal - normalized_last
+        if elapsed >= self.stop_reentry_cooldown:
+            self.last_stop_loss_time[direction] = None
+            return False, None
+
+        remaining_minutes = (self.stop_reentry_cooldown - elapsed).total_seconds() / 60.0
+        return True, max(0.0, remaining_minutes)
+
+    def _record_stop_loss(self, direction: str, event_time: datetime) -> None:
+        if direction not in self.last_stop_loss_time:
+            return
+        self.last_stop_loss_time[direction] = self._normalize_timestamp(event_time)
 
     def get_performance_summary(self) -> Dict:
         """Generate comprehensive performance summary"""

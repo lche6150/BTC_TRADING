@@ -39,6 +39,7 @@ from scripts.gap_test_real_data import (
     create_gru_model,
     create_sequences,
 )
+from src.models.stop_aligned_labeler import generate_stop_aligned_labels
 import pickle
 
 DEFAULT_LOG_FILENAME = "trading_log.txt"
@@ -149,17 +150,9 @@ def retrain_gru_model_until(cutoff_datetime: datetime,
     config = load_optimized_config()
     sequence_length = config['sequence_length']
     future_periods = 6
-    threshold = 0.001
-    choices = [0, 1]
 
-    future_returns = features['close'].pct_change(periods=future_periods).shift(-future_periods)
-    clear_movements = np.select([
-        future_returns <= -threshold,
-        future_returns >= threshold,
-    ], choices, default=-1)
-
-    target_mask = clear_movements != -1
-    targets = pd.Series(clear_movements, index=features.index)[target_mask]
+    labels = generate_stop_aligned_labels(features, future_periods=future_periods)
+    targets = labels[labels != -1]
 
     X_raw = features.loc[targets.index, available_features]
     valid_mask = ~X_raw.isnull().any(axis=1)
@@ -264,21 +257,14 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
         raise ValueError("No overlapping features found for GRU model")
 
     future_periods = 6
-    threshold = 0.001
-    choices = [0, 1]
 
     retrained = True
 
     config = load_optimized_config()
     sequence_length = config['sequence_length']
 
-    train_future_returns = train_features['close'].pct_change(periods=future_periods).shift(-future_periods)
-    train_clear_movements = np.select([
-        train_future_returns <= -threshold,
-        train_future_returns >= threshold,
-    ], choices, default=-1)
-    train_sideways_mask = train_clear_movements != -1
-    train_targets = pd.Series(train_clear_movements, index=train_features.index)[train_sideways_mask]
+    train_labels = generate_stop_aligned_labels(train_features, future_periods=future_periods)
+    train_targets = train_labels[train_labels != -1]
 
     X_train_raw = train_features[available_features].loc[train_targets.index]
     train_valid_mask = ~X_train_raw.isnull().any(axis=1)
@@ -365,14 +351,9 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
                 best_threshold = float(thresh)
 
     # Evaluation targets for metrics
-    test_future_returns = test_features['close'].pct_change(periods=future_periods).shift(-future_periods)
-    test_clear_movements = np.select([
-        test_future_returns <= -threshold,
-        test_future_returns >= threshold,
-    ], choices, default=-1)
-    test_sideways_mask = test_clear_movements != -1
-    test_targets = pd.Series(test_clear_movements, index=test_features.index)[test_sideways_mask]
-    X_test_eval_raw = test_features[available_features].loc[test_targets.index]
+    test_labels = generate_stop_aligned_labels(test_features, future_periods=future_periods)
+    test_targets = test_labels[test_labels != -1]
+    X_test_eval_raw = test_features.loc[test_targets.index, available_features]
     test_eval_valid_mask = ~X_test_eval_raw.isnull().any(axis=1)
     X_test_eval_clean = X_test_eval_raw[test_eval_valid_mask]
     y_test_eval_clean = test_targets.loc[test_eval_valid_mask]
@@ -616,6 +597,9 @@ def create_trading_log(trade_pairs,
     end_label = pd.to_datetime(end_date).strftime('%b %d, %Y')
     date_range_label = f"{start_label} - {end_label}"
 
+    save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
     total_net_after_all = 0.0
     total_fees = 0.0
     winning_trades = 0
@@ -628,7 +612,7 @@ def create_trading_log(trade_pairs,
     normal_volume_pnl = 0.0
     total_exit_pnl = 0.0
 
-    with open(save_path, 'w') as f:
+    with save_path.open('w') as f:
         f.write(f"TRADING LOG - {date_range_label} (Backtest)\n")
         f.write("=" * 50 + "\n\n")
 
