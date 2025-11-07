@@ -17,7 +17,7 @@ import sqlite3
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -39,6 +39,7 @@ from scripts.gap_test_real_data import (
     create_gru_model,
     create_sequences,
 )
+from live_trader.model_loader import GRUSignalModel
 from src.models.stop_aligned_labeler import generate_stop_aligned_labels
 import pickle
 
@@ -149,7 +150,7 @@ def retrain_gru_model_until(cutoff_datetime: datetime,
 
     config = load_optimized_config()
     sequence_length = config['sequence_length']
-    future_periods = 6
+    future_periods = 20
 
     labels = generate_stop_aligned_labels(features, future_periods=future_periods)
     targets = labels[labels != -1]
@@ -220,14 +221,20 @@ def retrain_gru_model_until(cutoff_datetime: datetime,
     }
 
 
-def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame, Dict[str, float]]:
-    """Train (or load cached) GRU model and return probability predictions."""
+def _train_gru_and_predict(
+    start_date: str,
+    end_date: str,
+    artifacts_path: Optional[Path] = None,
+) -> tuple[pd.DataFrame, Dict[str, float]]:
+    """Prepare GRU predictions either by loading artifacts or retraining in-memory."""
 
     start_dt = pd.to_datetime(start_date)
     end_dt = pd.to_datetime(end_date)
 
-    # Remove any cached GRU artifacts so this backtest retrains from scratch.
-    _purge_gru_backtest_artifacts()
+    use_artifacts = artifacts_path is not None
+    artifacts_dir = Path(artifacts_path) if use_artifacts else None
+    if use_artifacts and not artifacts_dir.exists():
+        raise FileNotFoundError(f"Model artifacts directory not found: {artifacts_dir}")
 
     db = TradingDatabase()
     df = db.get_ohlcv_data("BTCUSDT", "15m")
@@ -243,7 +250,7 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
     train_df = df[train_mask].copy()
     test_df = df[test_mask].copy()
 
-    if len(train_df) < 2000:
+    if not use_artifacts and len(train_df) < 2000:
         raise ValueError("Insufficient training data before start date")
     if len(test_df) == 0:
         raise ValueError("No test data in specified window")
@@ -252,103 +259,115 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
     train_features = feature_engine.create_all_features(train_df, include_multiframe=True, min_periods=100)
     test_features = feature_engine.create_all_features(test_df, include_multiframe=True, min_periods=100)
 
-    available_features = [f for f in MODEL_FEATURES if f in train_features.columns]
-    if len(available_features) == 0:
-        raise ValueError("No overlapping features found for GRU model")
+    future_periods = 20  # 20 * 15m = 300-minute forward horizon
 
-    future_periods = 6
-
-    retrained = True
-
-    config = load_optimized_config()
-    sequence_length = config['sequence_length']
-
-    train_labels = generate_stop_aligned_labels(train_features, future_periods=future_periods)
-    train_targets = train_labels[train_labels != -1]
-
-    X_train_raw = train_features[available_features].loc[train_targets.index]
-    train_valid_mask = ~X_train_raw.isnull().any(axis=1)
-    X_train_clean = X_train_raw[train_valid_mask]
-    y_train_clean = train_targets.loc[train_valid_mask]
-
-    scaler = MinMaxScaler()
-    X_train_scaled = pd.DataFrame(
-        scaler.fit_transform(X_train_clean),
-        columns=available_features,
-        index=X_train_clean.index
-    )
-
-    X_train_seq, y_train_seq = create_sequences(X_train_scaled, y_train_clean, sequence_length)
-    model = create_gru_model(config, X_train_seq.shape[2])
-
-    total_sequences = len(X_train_seq)
-    if total_sequences == 0:
-        raise ValueError("Insufficient sequence data after cleaning to train GRU model")
-
-    val_size = max(1, int(total_sequences * 0.2)) if total_sequences > 1 else 0
-    train_size = total_sequences - val_size
-
-    if train_size <= 0:
-        train_size = total_sequences
-        val_size = 0
-
-    X_train_sequences = X_train_seq[:train_size]
-    y_train_sequences = y_train_seq[:train_size]
-
-    if val_size > 0:
-        X_val_sequences = X_train_seq[train_size:]
-        y_val_sequences = y_train_seq[train_size:]
-        validation_data = (X_val_sequences, y_val_sequences)
-    else:
-        X_val_sequences = np.empty((0,))
-        y_val_sequences = np.empty((0,))
-        validation_data = None
-
-    callbacks = [
-        EarlyStopping(
-            monitor='val_accuracy',
-            patience=config['patience'],
-            restore_best_weights=True,
-            verbose=0,
-            mode='max'
-        ),
-        ReduceLROnPlateau(
-            monitor='val_accuracy',
-            factor=0.7,
-            patience=max(1, config['patience'] // 2),
-            min_lr=1e-6,
-            verbose=0,
-            mode='max'
-        )
-    ]
-
-    fit_kwargs = dict(
-        x=X_train_sequences,
-        y=y_train_sequences,
-        epochs=config['epochs'],
-        batch_size=config['batch_size'],
-        callbacks=callbacks,
-        verbose=0
-    )
-    if validation_data and len(X_val_sequences) > 0:
-        fit_kwargs["validation_data"] = validation_data
-    else:
-        fit_kwargs["validation_split"] = 0.0
-
-    model.fit(**fit_kwargs)
-
-    # Determine best threshold using validation sequences
+    retrained = False
     best_threshold = 0.5
-    if validation_data and len(X_val_sequences) > 0:
-        val_probs = model.predict(X_val_sequences, verbose=0).flatten()
-        thresholds = np.arange(0.4, 0.7, 0.05)
-        best_acc = -1.0
-        for thresh in thresholds:
-            preds_temp = (val_probs > thresh).astype(int)
-            acc_temp = (preds_temp == y_val_sequences).mean()
-            if acc_temp > best_acc:
-                best_acc = acc_temp
-                best_threshold = float(thresh)
+
+    if use_artifacts:
+        loader = GRUSignalModel(model_dir=artifacts_dir)
+        available_features = loader.available_features or MODEL_FEATURES
+        available_features = [f for f in available_features if f in train_features.columns]
+        if len(available_features) == 0:
+            raise ValueError("No overlapping features found between artifacts and dataset")
+        sequence_length = int(loader.sequence_length)
+        scaler = loader.scaler
+        model = loader.model
+        if getattr(loader, "best_threshold", None) is not None:
+            best_threshold = float(loader.best_threshold)
+    else:
+        available_features = [f for f in MODEL_FEATURES if f in train_features.columns]
+        if len(available_features) == 0:
+            raise ValueError("No overlapping features found for GRU model")
+
+        retrained = True
+        config = load_optimized_config()
+        sequence_length = config['sequence_length']
+
+        train_labels = generate_stop_aligned_labels(train_features, future_periods=future_periods)
+        train_targets = train_labels[train_labels != -1]
+
+        X_train_raw = train_features[available_features].loc[train_targets.index]
+        train_valid_mask = ~X_train_raw.isnull().any(axis=1)
+        X_train_clean = X_train_raw[train_valid_mask]
+        y_train_clean = train_targets.loc[train_valid_mask]
+
+        scaler = MinMaxScaler()
+        X_train_scaled = pd.DataFrame(
+            scaler.fit_transform(X_train_clean),
+            columns=available_features,
+            index=X_train_clean.index
+        )
+
+        X_train_seq, y_train_seq = create_sequences(X_train_scaled, y_train_clean, sequence_length)
+        model = create_gru_model(config, X_train_seq.shape[2])
+
+        total_sequences = len(X_train_seq)
+        if total_sequences == 0:
+            raise ValueError("Insufficient sequence data after cleaning to train GRU model")
+
+        val_size = max(1, int(total_sequences * 0.2)) if total_sequences > 1 else 0
+        train_size = total_sequences - val_size
+
+        if train_size <= 0:
+            train_size = total_sequences
+            val_size = 0
+
+        X_train_sequences = X_train_seq[:train_size]
+        y_train_sequences = y_train_seq[:train_size]
+
+        if val_size > 0:
+            X_val_sequences = X_train_seq[train_size:]
+            y_val_sequences = y_train_seq[train_size:]
+            validation_data = (X_val_sequences, y_val_sequences)
+        else:
+            X_val_sequences = np.empty((0,))
+            y_val_sequences = np.empty((0,))
+            validation_data = None
+
+        callbacks = [
+            EarlyStopping(
+                monitor='val_accuracy',
+                patience=config['patience'],
+                restore_best_weights=True,
+                verbose=0,
+                mode='max'
+            ),
+            ReduceLROnPlateau(
+                monitor='val_accuracy',
+                factor=0.7,
+                patience=max(1, config['patience'] // 2),
+                min_lr=1e-6,
+                verbose=0,
+                mode='max'
+            )
+        ]
+
+        fit_kwargs = dict(
+            x=X_train_sequences,
+            y=y_train_sequences,
+            epochs=config['epochs'],
+            batch_size=config['batch_size'],
+            callbacks=callbacks,
+            verbose=0
+        )
+        if validation_data and len(X_val_sequences) > 0:
+            fit_kwargs["validation_data"] = validation_data
+        else:
+            fit_kwargs["validation_split"] = 0.0
+
+        model.fit(**fit_kwargs)
+
+        if validation_data and len(X_val_sequences) > 0:
+            val_probs = model.predict(X_val_sequences, verbose=0).flatten()
+            thresholds = np.arange(0.4, 0.7, 0.05)
+            best_acc = -1.0
+            for thresh in thresholds:
+                preds_temp = (val_probs > thresh).astype(int)
+                acc_temp = (preds_temp == y_val_sequences).mean()
+                if acc_temp > best_acc:
+                    best_acc = acc_temp
+                    best_threshold = float(thresh)
 
     # Evaluation targets for metrics
     test_labels = generate_stop_aligned_labels(test_features, future_periods=future_periods)
@@ -367,6 +386,15 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
     X_test_all_raw = test_features[available_features]
     test_all_valid_mask = ~X_test_all_raw.isnull().any(axis=1)
     X_test_all_clean = X_test_all_raw[test_all_valid_mask]
+    missing_feature_map = {}
+    if (~test_all_valid_mask).any():
+        invalid_indices = X_test_all_raw.index[~test_all_valid_mask]
+        for idx in invalid_indices:
+            row = X_test_all_raw.loc[idx]
+            missing_cols = row[row.isnull()].index.tolist()
+            if missing_cols:
+                ts = pd.to_datetime(test_features.loc[idx, 'datetime'])
+                missing_feature_map[pd.Timestamp(ts)] = missing_cols
     X_test_all_scaled = pd.DataFrame(
         scaler.transform(X_test_all_clean),
         columns=available_features,
@@ -385,7 +413,14 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
     predictions_df['confidence'] = predictions_df[['prob_up', 'prob_down']].max(axis=1)
     predictions_df['datetime'] = test_features.loc[prediction_indices, 'datetime'].values
 
-    metrics: Dict[str, float] = {'retrained': retrained}
+    metrics: Dict[str, float] = {'retrained': retrained, 'best_threshold': float(best_threshold)}
+    if use_artifacts:
+        metrics['model_source'] = str(artifacts_dir.resolve())
+    if missing_feature_map:
+        metrics['missing_feature_details'] = {
+            ts.isoformat(): cols for ts, cols in missing_feature_map.items()
+        }
+
     if len(X_test_eval_seq) > 0:
         from sklearn.metrics import accuracy_score
 
@@ -395,7 +430,6 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
         preds_eval = (eval_probs > best_threshold).astype(int)
         best_acc = accuracy_score(y_test_eval_seq, preds_eval)
         metrics['accuracy'] = float(best_acc)
-        metrics['best_threshold'] = float(best_threshold)
         metrics['eval_samples'] = int(len(y_test_eval_seq))
 
         high_conf_mask = predictions_df.loc[eval_indices, 'confidence'] >= 0.55
@@ -406,8 +440,6 @@ def _train_gru_and_predict(start_date: str, end_date: str) -> tuple[pd.DataFrame
             )
             metrics['high_confidence_accuracy'] = float(high_conf_acc)
             metrics['high_confidence_samples'] = int(high_conf_mask.sum())
-    else:
-        metrics['best_threshold'] = float(best_threshold)
 
     return predictions_df, metrics
 
@@ -415,16 +447,27 @@ def generate_signals_with_tracking(
     data: pd.DataFrame,
     start_date: str,
     end_date: str,
-    predictions: pd.DataFrame | None = None,
-    cached_metrics: Dict[str, float] | None = None,
+    artifacts_path: Optional[Path] = None,
+    predictions: Optional[pd.DataFrame] = None,
+    cached_metrics: Optional[Dict[str, float]] = None,
 ):
     """Generate trading signals using trained GRU model"""
     if predictions is None:
         print("🤖 训练 GRU 模型并生成信号...")
-        predictions_df, model_metrics = _train_gru_and_predict(start_date, end_date)
+        predictions_df, model_metrics = _train_gru_and_predict(
+            start_date,
+            end_date,
+            artifacts_path=artifacts_path,
+        )
     else:
         predictions_df = predictions.copy()
         model_metrics = cached_metrics or {}
+
+    missing_feature_details = model_metrics.get('missing_feature_details', {})
+    if missing_feature_details:
+        missing_feature_details = {
+            pd.Timestamp(key): value for key, value in missing_feature_details.items()
+        }
 
     merged = data.merge(predictions_df[['datetime', 'prob_up', 'prob_down', 'confidence']],
                         on='datetime', how='left')
@@ -432,6 +475,7 @@ def generate_signals_with_tracking(
     predictions = []
     confidences = []
     signal_strength = []
+    missing_feature_trace = []
 
     decision_threshold = model_metrics.get('best_threshold', 0.5)
 
@@ -441,6 +485,8 @@ def generate_signals_with_tracking(
             predictions.append(None)
             confidences.append(0.0)
             signal_strength.append('None')
+            ts = pd.to_datetime(merged['datetime'].iloc[i])
+            missing_feature_trace.append(missing_feature_details.get(ts, []))
             continue
 
         prob_down = merged['prob_down'].iloc[i]
@@ -458,11 +504,13 @@ def generate_signals_with_tracking(
         predictions.append(prediction)
         confidences.append(confidence)
         signal_strength.append(strength)
+        missing_feature_trace.append([])
 
     merged['prediction'] = predictions
     merged['confidence'] = confidences
     merged['signal_strength'] = signal_strength
     merged['direction'] = merged['prediction'].apply(lambda p: 'UP' if p == 1 else ('DOWN' if p == 0 else None))
+    merged['missing_features'] = missing_feature_trace
 
     return merged, model_metrics
 
@@ -473,6 +521,7 @@ def run_trading_simulation_with_tracking(data, system_config=None, initial_capit
     trading_system = ComprehensiveTradingSystem(initial_capital, config=system_config)
     trades_log = []
     all_signals = []
+    missing_features_series = data['missing_features'] if 'missing_features' in data.columns else None
 
     for i in range(100, len(data)):
         current_time = data['datetime'].iloc[i]
@@ -524,10 +573,34 @@ def run_trading_simulation_with_tracking(data, system_config=None, initial_capit
             'confidence': confidence,
             'strength': strength,
             'prob_up': prob_up,
-            'executed': False
+            'executed': False,
+            'missing_features': missing_features_series.iloc[i] if missing_features_series is not None else [],
         })
 
         if direction is None or confidence < trading_system.min_confidence:
+            payload = {
+                'status': 'rejected',
+                'timestamp': current_time,
+                'price': current_price,
+                'direction': direction,
+                'confidence': confidence,
+                'prob_up': prob_up,
+                'reason': 'below_min_confidence' if confidence < trading_system.min_confidence else 'no_direction',
+            }
+            decision = getattr(trading_system, 'last_signal_decision', None)
+            if isinstance(decision, dict):
+                reason = decision.get('reason')
+                if reason:
+                    payload['reason'] = reason
+                stage = decision.get('stage')
+                if stage:
+                    payload['stage'] = stage
+            payload.setdefault('confidence', float(confidence) if pd.notna(confidence) else None)
+            payload.setdefault('prob_up', float(prob_up) if pd.notna(prob_up) else None)
+            if missing_features_series is not None:
+                payload['missing_features'] = missing_features_series.iloc[i]
+            payload['executed'] = False
+            all_signals.append(payload)
             continue
 
         position = trading_system.process_signal(
@@ -539,7 +612,20 @@ def run_trading_simulation_with_tracking(data, system_config=None, initial_capit
 
         if position:
             # Mark this signal as executed
-            all_signals[-1]['executed'] = True
+            payload = {
+                'status': 'accepted',
+                'timestamp': current_time,
+                'price': current_price,
+                'direction': direction,
+                'confidence': float(confidence) if pd.notna(confidence) else None,
+                'prob_up': float(prob_up) if pd.notna(prob_up) else None,
+                'executed': True,
+                'missing_features': missing_features_series.iloc[i] if missing_features_series is not None else [],
+            }
+            decision = getattr(trading_system, 'last_signal_decision', None)
+            if isinstance(decision, dict):
+                payload.update({k: v for k, v in decision.items() if k not in {'status'}})
+            all_signals.append(payload)
 
             trades_log.append({
                 'timestamp': current_time,
@@ -551,7 +637,23 @@ def run_trading_simulation_with_tracking(data, system_config=None, initial_capit
                 'position_size_pct': position.position_size_pct,
                 'position_value': position.position_value,
                 'entry_fee': position.entry_fee,
-                'position_id': position.signal_id
+                'position_id': position.signal_id,
+                'stop_loss': getattr(position, 'stop_loss', None),
+                'stop_pct': getattr(position, 'stop_pct', None),
+                'target1_price': getattr(position, 'target_1', None),
+                'target1_pct': getattr(position, 'target1_pct', None),
+                'target1_multiplier': (
+                    (position.target1_pct / position.stop_pct)
+                    if getattr(position, 'stop_pct', 0.0)
+                    else None
+                ),
+                'target2_price': getattr(position, 'target_2', None),
+                'target2_pct': getattr(position, 'target2_pct', None),
+                'target2_multiplier': (
+                    (position.target2_pct / position.stop_pct)
+                    if getattr(position, 'stop_pct', 0.0)
+                    else None
+                ),
             })
 
     # Final position flush at session end
@@ -648,6 +750,39 @@ def create_trading_log(trade_pairs,
             f.write(f"  Position:    {position_pct:.2f}% (${position_value:,.2f})\n")
             f.write(f"  Entry Fee:   ${entry_fee:,.2f}\n")
 
+            stop_pct = open_trade.get('stop_pct')
+            stop_loss = open_trade.get('stop_loss')
+            target1_price = open_trade.get('target1_price')
+            target1_pct = open_trade.get('target1_pct')
+            target1_mult = open_trade.get('target1_multiplier')
+            target2_price = open_trade.get('target2_price')
+            target2_pct = open_trade.get('target2_pct')
+            target2_mult = open_trade.get('target2_multiplier')
+
+            if stop_loss is not None and stop_pct is not None:
+                stop_dir = "below" if open_trade['direction'] == "UP" else "above"
+                f.write(
+                    f"  Stop Loss:  ${stop_loss:,.2f} ({stop_dir} entry by {stop_pct*100:.2f}% of price)\n"
+                )
+            if target1_price is not None and target1_pct is not None:
+                target1_dir = "above" if open_trade['direction'] == "UP" else "below"
+                calc_note = ""
+                if stop_pct:
+                    mult_display = target1_mult if target1_mult is not None else (target1_pct / stop_pct)
+                    calc_note = f" = stop_pct {stop_pct*100:.2f}% × multiplier {mult_display:.2f}"
+                f.write(
+                    f"  Target 1:   ${target1_price:,.2f} ({target1_dir} entry by {target1_pct*100:.2f}%{calc_note})\n"
+                )
+            if target2_price is not None and target2_pct is not None:
+                target2_dir = "above" if open_trade['direction'] == "UP" else "below"
+                calc_note = ""
+                if stop_pct:
+                    mult_display = target2_mult if target2_mult is not None else (target2_pct / stop_pct)
+                    calc_note = f" = stop_pct {stop_pct*100:.2f}% × multiplier {mult_display:.2f}"
+                f.write(
+                    f"  Target 2:   ${target2_price:,.2f} ({target2_dir} entry by {target2_pct*100:.2f}%{calc_note})\n"
+                )
+
             last_bucket = None
             for idx, close_trade in enumerate(closes, 1):
                 f.write(
@@ -705,384 +840,384 @@ def create_trading_log(trade_pairs,
     print(f"💾 Trading log saved to {save_path}")
 
 
-def create_figure1_style_chart(data, trades_log, all_signals, date_range_label: str, save_path='Figure_1.png'):
-    """Create comprehensive chart matching Figure_1.png style"""
-    print("📈 Creating Figure_1.png style comprehensive chart...")
-
-    # Create figure with 3 subplots
-    fig = plt.figure(figsize=(18, 14))
-
-    # Create gridspec for better control
-    gs = fig.add_gridspec(3, 1, height_ratios=[2, 2, 1.5], hspace=0.3)
-
-    ax1 = fig.add_subplot(gs[0])  # Top: Entry/Exit with P&L
-    ax2 = fig.add_subplot(gs[1], sharex=ax1)  # Middle: Signals & Confidence
-    ax3 = fig.add_subplot(gs[2], sharex=ax1)  # Bottom: Cumulative P&L
-
-    # --- PANEL 1: Entry/Exit Points with P&L ---
-    ax1.plot(data['datetime'], data['close'], color='gray', linewidth=1, alpha=0.8, label='BTC Price')
-
-    # Process trades for entry/exit boxes
-    open_trades = [t for t in trades_log if t['action'] == 'OPEN']
-    close_trades = [t for t in trades_log if t['action'] == 'CLOSE']
-
-    # Create trade pairs for P&L boxes
-    trade_pairs = {}
-    for trade in open_trades:
-        trade_pairs[trade['position_id']] = {'open': trade, 'close': None}
-
-    for trade in close_trades:
-        if trade['position_id'] in trade_pairs:
-            trade_pairs[trade['position_id']]['close'] = trade
-
-    # Get price range for label positioning
-    price_min = data['close'].min()
-    price_max = data['close'].max()
-    price_range = price_max - price_min
-
-    # Define label area below the price chart
-    label_area_top = price_min - price_range * 0.05  # 5% below minimum price
-    label_area_height = price_range * 0.15  # Use 15% of price range for labels
-
-    # Draw P&L boxes and add trade numbers with vertical line mapping
-    trade_counter = 1
-    entry_labels = []  # Store entry label info for spacing
-    exit_labels = []   # Store exit label info for spacing
-
-    for pair_id, pair in trade_pairs.items():
-        if pair['open'] and pair['close']:
-            open_trade = pair['open']
-            close_trade = pair['close']
-
-            # Calculate box position and size
-            x_start = open_trade['timestamp']
-            x_end = close_trade['timestamp']
-            y_bottom = min(open_trade['price'], close_trade['price']) - 50
-            y_top = max(open_trade['price'], close_trade['price']) + 50
-
-            # Color based on P&L
-            pnl = close_trade['pnl']
-            color = 'green' if pnl > 0 else 'red'
-            alpha = 0.3
-
-            # Draw rectangle
-            width = (x_end - x_start).total_seconds() / 3600 / 24  # Convert to days for matplotlib
-            rect = Rectangle((mdates.date2num(x_start), y_bottom),
-                           mdates.date2num(x_end) - mdates.date2num(x_start),
-                           y_top - y_bottom,
-                           facecolor=color, alpha=alpha, edgecolor=color)
-            ax1.add_patch(rect)
-
-            # Store label information for later positioning
-            entry_labels.append({
-                'timestamp': x_start,
-                'price': open_trade['price'],
-                'label': f'E{trade_counter}',
-                'counter': trade_counter
-            })
-
-            exit_labels.append({
-                'timestamp': x_end,
-                'price': close_trade['price'],
-                'label': f'X{trade_counter}',
-                'counter': trade_counter
-            })
-
-            trade_counter += 1
-
-    # Sort labels by timestamp for proper horizontal spacing
-    entry_labels.sort(key=lambda x: x['timestamp'])
-    exit_labels.sort(key=lambda x: x['timestamp'])
-
-    # Position entry labels in lower area with vertical lines
-    for i, entry in enumerate(entry_labels):
-        # Calculate horizontal position based on order
-        label_y = label_area_top - (i % 3) * (label_area_height / 4)  # 3 rows of labels
-
-        # Draw vertical line from actual price point to label
-        ax1.plot([entry['timestamp'], entry['timestamp']],
-                [entry['price'], label_y + 20],
-                color='blue', linewidth=1, alpha=0.7, linestyle='-')
-
-        # Add entry label
-        ax1.text(entry['timestamp'], label_y, entry['label'],
-                ha='center', va='center', fontsize=6,
-                color='white', weight='bold',
-                bbox=dict(boxstyle='round,pad=0.15', facecolor='blue', alpha=0.8))
-
-    # Position exit labels in lower area with vertical lines
-    for i, exit in enumerate(exit_labels):
-        # Calculate horizontal position based on order, offset from entry labels
-        label_y = label_area_top - label_area_height/2 - (i % 3) * (label_area_height / 4)  # Below entry labels
-
-        # Draw vertical line from actual price point to label
-        ax1.plot([exit['timestamp'], exit['timestamp']],
-                [exit['price'], label_y + 20],
-                color='red', linewidth=1, alpha=0.7, linestyle='-')
-
-        # Add exit label
-        ax1.text(exit['timestamp'], label_y, exit['label'],
-                ha='center', va='center', fontsize=6,
-                color='white', weight='bold',
-                bbox=dict(boxstyle='round,pad=0.15', facecolor='red', alpha=0.8))
-
-    ax1.set_ylabel('Price ($)', fontsize=12)
-    ax1.set_title('Trading System Backtest Results - Sept 25-29, 2025 (Unseen Data)\n$20,000 Initial Capital',
-                  fontsize=14, weight='bold')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend(loc='upper left')
-
-    # --- PANEL 2: Trading Signals & Confidence ---
-    # Plot BTC price on secondary y-axis
-    ax2_price = ax2.twinx()
-    ax2_price.plot(data['datetime'], data['close'], color='gray', linewidth=1, alpha=0.6, label='BTC Price')
-    ax2_price.set_ylabel('BTC Price ($)', fontsize=12)
-    ax2_price.tick_params(axis='y', labelcolor='gray')
-
-    # Plot confidence levels and thresholds
-    ax2.axhline(y=0.65, color='orange', linestyle='--', alpha=0.7, label='Min Confidence (65%)')
-    ax2.axhline(y=0.60, color='purple', linestyle='--', alpha=0.7, label='Medium Threshold (60%)')
-    ax2.axhline(y=0.80, color='pink', linestyle='--', alpha=0.7, label='High Threshold (80%)')
-
-    # Get confidence range for label positioning
-    confidence_min = 0.5
-    confidence_max = 1.0
-    confidence_range = confidence_max - confidence_min
-
-    # Define label area below the confidence chart
-    signal_label_area_top = confidence_min - confidence_range * 0.02  # 2% below minimum confidence (much closer)
-    signal_label_area_height = confidence_range * 0.12  # Use 12% of confidence range for labels (smaller area)
-
-    # Plot all signals with different styles based on strength and execution
-    signal_df = pd.DataFrame(all_signals)
-
-    # Filter signals for plotting (every 4th point to avoid overcrowding)
-    plot_signals = signal_df[::4].copy()
-
-    # Store signal labels for positioning below
-    entry_signal_labels = []
-    exit_signal_labels = []
-
-    # Track executed trade numbers for signal panel
-    executed_trade_counter = 1
-    for _, signal in plot_signals.iterrows():
-        confidence = signal['confidence']
-        executed = signal['executed']
-        direction = signal['direction']
-        strength = signal['strength']
-
-        # Determine color and size
-        if executed:
-            color = 'yellow' if direction == 'UP' else 'orange'
-            size = 60
-            marker = 'o'
-        else:
-            if strength == 'Strong':
-                color = 'darkblue' if direction == 'UP' else 'darkred'
-                alpha = 0.8
-            elif strength == 'Medium':
-                color = 'blue' if direction == 'UP' else 'red'
-                alpha = 0.6
-            else:  # Weak
-                color = 'lightblue' if direction == 'UP' else 'lightcoral'
-                alpha = 0.4
-            size = 20
-            marker = '^' if direction == 'UP' else 'v'
-
-        ax2.scatter(signal['timestamp'], confidence,
-                   c=color, s=size, marker=marker, alpha=0.7,
-                   edgecolors='black' if executed else 'none', linewidth=0.5)
-
-        # Store entry signal labels for later positioning
-        if executed:
-            entry_signal_labels.append({
-                'timestamp': signal['timestamp'],
-                'confidence': confidence,
-                'label': f'E{executed_trade_counter}',
-                'counter': executed_trade_counter
-            })
-            executed_trade_counter += 1
-
-    # Add exit signals for profitable trades (not stop losses)
-    exit_trade_counter = 1
-    open_trades = [t for t in trades_log if t['action'] == 'OPEN']
-    close_trades = [t for t in trades_log if t['action'] == 'CLOSE']
-
-    # Create trade pairs to match entries with exits
-    trade_pairs_signals = {}
-    for trade in open_trades:
-        trade_pairs_signals[trade['position_id']] = {'open': trade, 'close': None}
-    for trade in close_trades:
-        if trade['position_id'] in trade_pairs_signals:
-            trade_pairs_signals[trade['position_id']]['close'] = trade
-
-    # Plot exit signals only for profit target exits (not stop losses)
-    for pair_id, pair in trade_pairs_signals.items():
-        if pair['open'] and pair['close']:
-            close_trade = pair['close']
-
-            # Only show exit signal if it's a profit target (not stop loss)
-            if 'PROFIT_TARGET' in close_trade['reason']:
-                # Find the corresponding exit timestamp in the data
-                exit_time = close_trade['timestamp']
-                exit_price = close_trade['price']
-
-                # Find the closest data point to the exit time for confidence level
-                exit_data_idx = data[data['datetime'] <= exit_time].index[-1] if len(data[data['datetime'] <= exit_time]) > 0 else 0
-                if exit_data_idx < len(data):
-                    exit_confidence = data.iloc[exit_data_idx]['confidence']
-
-                    # Plot exit signal
-                    ax2.scatter(exit_time, exit_confidence,
-                               c='green', s=80, marker='s', alpha=0.8,
-                               edgecolors='darkgreen', linewidth=2)
-
-                    # Store exit signal labels for later positioning
-                    exit_signal_labels.append({
-                        'timestamp': exit_time,
-                        'confidence': exit_confidence,
-                        'label': f'X{exit_trade_counter}',
-                        'counter': exit_trade_counter
-                    })
-
-            exit_trade_counter += 1
-
-    # Sort signal labels by timestamp for proper horizontal spacing
-    entry_signal_labels.sort(key=lambda x: x['timestamp'])
-    exit_signal_labels.sort(key=lambda x: x['timestamp'])
-
-    # Position entry signal labels with smart spacing to avoid overlaps
-    def get_smart_label_position(labels, base_y, min_spacing_hours=2):
-        """Calculate positions to avoid horizontal overlaps"""
-        positions = []
-        if not labels:
-            return positions
-
-        # Sort by timestamp
-        sorted_labels = sorted(labels, key=lambda x: x['timestamp'])
-
-        for i, label in enumerate(sorted_labels):
-            # Start with the base position
-            y_pos = base_y - (i % 2) * (signal_label_area_height / 3)  # Alternate between 2 rows
-
-            # Check for horizontal overlap with previous labels
-            if positions:
-                # Convert timestamp to hours for spacing calculation
-                current_time = pd.to_datetime(label['timestamp'])
-                for prev_label, prev_y in positions:
-                    prev_time = pd.to_datetime(prev_label['timestamp'])
-                    time_diff_hours = abs((current_time - prev_time).total_seconds() / 3600)
-
-                    # If too close horizontally, use different row
-                    if time_diff_hours < min_spacing_hours and abs(y_pos - prev_y) < signal_label_area_height / 6:
-                        y_pos = base_y - signal_label_area_height * 0.6 - (i % 2) * (signal_label_area_height / 4)
-                        break
-
-            positions.append((label, y_pos))
-
-        return positions
-
-    # Position entry signal labels with smart spacing
-    entry_positions = get_smart_label_position(entry_signal_labels, signal_label_area_top)
-
-    for entry, label_y in entry_positions:
-        # Draw simple vertical line from top to bottom of the chart
-        ax2.axvline(x=entry['timestamp'], color='blue', linewidth=1, alpha=0.6, linestyle='-')
-
-        # Add entry signal label
-        ax2.text(entry['timestamp'], label_y, entry['label'],
-                ha='center', va='center', fontsize=7,
-                color='white', weight='bold',
-                bbox=dict(boxstyle='round,pad=0.1', facecolor='blue', alpha=0.8))
-
-    # Position exit signal labels with smart spacing
-    exit_base_y = signal_label_area_top - signal_label_area_height * 0.4  # Offset from entry labels
-    exit_positions = get_smart_label_position(exit_signal_labels, exit_base_y)
-
-    for exit, label_y in exit_positions:
-        # Draw simple vertical line from top to bottom of the chart
-        ax2.axvline(x=exit['timestamp'], color='green', linewidth=1, alpha=0.6, linestyle='-')
-
-        # Add exit signal label
-        ax2.text(exit['timestamp'], label_y, exit['label'],
-                ha='center', va='center', fontsize=7,
-                color='white', weight='bold',
-                bbox=dict(boxstyle='round,pad=0.1', facecolor='green', alpha=0.8))
-
-    ax2.set_ylabel('Signal Confidence', fontsize=12, color='blue')
-    ax2.set_ylim(0.5, 1.0)
-    ax2.tick_params(axis='y', labelcolor='blue')
-    ax2.set_title('Trading Signals & Confidence Levels with BTC Price', fontsize=12)
-    ax2.grid(True, alpha=0.3)
-
-    # Create custom legend for signals
-    from matplotlib.lines import Line2D
-    legend_elements = [
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='yellow', markersize=10,
-               markeredgecolor='black', label='Entry Signal UP'),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=10,
-               markeredgecolor='black', label='Entry Signal DOWN'),
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='green', markersize=8,
-               markeredgecolor='darkgreen', label='Exit Signal (Profit)'),
-        Line2D([0], [0], marker='^', color='w', markerfacecolor='darkblue', markersize=8,
-               label='Strong UP'),
-        Line2D([0], [0], marker='v', color='w', markerfacecolor='darkred', markersize=8,
-               label='Strong DOWN'),
-        Line2D([0], [0], marker='^', color='w', markerfacecolor='lightblue', markersize=6,
-               label='Weak UP'),
-        Line2D([0], [0], marker='v', color='w', markerfacecolor='lightcoral', markersize=6,
-               label='Weak DOWN'),
-    ]
-    ax2.legend(handles=legend_elements, loc='upper left', fontsize=9)
-
-    # --- PANEL 3: Cumulative Performance ---
-    # Calculate cumulative P&L
-    cumulative_pnl = []
-    trade_times = []
-    running_pnl = 0
-
-    for trade in close_trades:
-        trade_times.append(trade['timestamp'])
-        running_pnl += trade['pnl']
-        cumulative_pnl.append(running_pnl)
-
-    if trade_times:
-        ax3.plot(trade_times, cumulative_pnl, color='blue', linewidth=2, marker='o', markersize=4)
-        ax3.axhline(y=0, color='gray', linestyle='--', alpha=0.7)
-
-        # Fill area
-        ax3.fill_between(trade_times, cumulative_pnl, 0,
-                        where=np.array(cumulative_pnl) >= 0, alpha=0.3, color='green')
-        ax3.fill_between(trade_times, cumulative_pnl, 0,
-                        where=np.array(cumulative_pnl) < 0, alpha=0.3, color='red')
-
-        # Add final P&L and trade count text
-        final_pnl = cumulative_pnl[-1]
-        total_trades = len(close_trades)
-        ax3.text(0.02, 0.98, f'Final P&L: ${final_pnl:.2f}\nTotal Trades: {total_trades}',
-                transform=ax3.transAxes, fontsize=12, weight='bold',
-                verticalalignment='top',
-                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-
-    ax3.set_ylabel('Cumulative P&L ($)', fontsize=12)
-    ax3.set_xlabel('Date', fontsize=12)
-    ax3.set_title('Cumulative Trading Performance', fontsize=12)
-    ax3.grid(True, alpha=0.3)
-
-    # Format x-axis for shorter period (daily detail)
-    for ax in [ax1, ax2, ax3]:
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-        ax.xaxis.set_major_locator(mdates.DayLocator(interval=2))
-
-    plt.setp(ax1.get_xticklabels(), visible=False)
-    plt.setp(ax2.get_xticklabels(), visible=False)
-    plt.xticks(rotation=45)
-
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    print(f"💾 Figure_1.png style chart saved to {save_path}")
-
-    return fig
+# def create_figure1_style_chart(data, trades_log, all_signals, date_range_label: str, save_path='Figure_1.png'):
+#     """Create comprehensive chart matching Figure_1.png style"""
+#     print("📈 Creating Figure_1.png style comprehensive chart...")
+
+#     # Create figure with 3 subplots
+#     fig = plt.figure(figsize=(18, 14))
+
+#     # Create gridspec for better control
+#     gs = fig.add_gridspec(3, 1, height_ratios=[2, 2, 1.5], hspace=0.3)
+
+#     ax1 = fig.add_subplot(gs[0])  # Top: Entry/Exit with P&L
+#     ax2 = fig.add_subplot(gs[1], sharex=ax1)  # Middle: Signals & Confidence
+#     ax3 = fig.add_subplot(gs[2], sharex=ax1)  # Bottom: Cumulative P&L
+
+#     # --- PANEL 1: Entry/Exit Points with P&L ---
+#     ax1.plot(data['datetime'], data['close'], color='gray', linewidth=1, alpha=0.8, label='BTC Price')
+
+#     # Process trades for entry/exit boxes
+#     open_trades = [t for t in trades_log if t['action'] == 'OPEN']
+#     close_trades = [t for t in trades_log if t['action'] == 'CLOSE']
+
+#     # Create trade pairs for P&L boxes
+#     trade_pairs = {}
+#     for trade in open_trades:
+#         trade_pairs[trade['position_id']] = {'open': trade, 'close': None}
+
+#     for trade in close_trades:
+#         if trade['position_id'] in trade_pairs:
+#             trade_pairs[trade['position_id']]['close'] = trade
+
+#     # Get price range for label positioning
+#     price_min = data['close'].min()
+#     price_max = data['close'].max()
+#     price_range = price_max - price_min
+
+#     # Define label area below the price chart
+#     label_area_top = price_min - price_range * 0.05  # 5% below minimum price
+#     label_area_height = price_range * 0.15  # Use 15% of price range for labels
+
+#     # Draw P&L boxes and add trade numbers with vertical line mapping
+#     trade_counter = 1
+#     entry_labels = []  # Store entry label info for spacing
+#     exit_labels = []   # Store exit label info for spacing
+
+#     for pair_id, pair in trade_pairs.items():
+#         if pair['open'] and pair['close']:
+#             open_trade = pair['open']
+#             close_trade = pair['close']
+
+#             # Calculate box position and size
+#             x_start = open_trade['timestamp']
+#             x_end = close_trade['timestamp']
+#             y_bottom = min(open_trade['price'], close_trade['price']) - 50
+#             y_top = max(open_trade['price'], close_trade['price']) + 50
+
+#             # Color based on P&L
+#             pnl = close_trade['pnl']
+#             color = 'green' if pnl > 0 else 'red'
+#             alpha = 0.3
+
+#             # Draw rectangle
+#             width = (x_end - x_start).total_seconds() / 3600 / 24  # Convert to days for matplotlib
+#             rect = Rectangle((mdates.date2num(x_start), y_bottom),
+#                            mdates.date2num(x_end) - mdates.date2num(x_start),
+#                            y_top - y_bottom,
+#                            facecolor=color, alpha=alpha, edgecolor=color)
+#             ax1.add_patch(rect)
+
+#             # Store label information for later positioning
+#             entry_labels.append({
+#                 'timestamp': x_start,
+#                 'price': open_trade['price'],
+#                 'label': f'E{trade_counter}',
+#                 'counter': trade_counter
+#             })
+
+#             exit_labels.append({
+#                 'timestamp': x_end,
+#                 'price': close_trade['price'],
+#                 'label': f'X{trade_counter}',
+#                 'counter': trade_counter
+#             })
+
+#             trade_counter += 1
+
+#     # Sort labels by timestamp for proper horizontal spacing
+#     entry_labels.sort(key=lambda x: x['timestamp'])
+#     exit_labels.sort(key=lambda x: x['timestamp'])
+
+#     # Position entry labels in lower area with vertical lines
+#     for i, entry in enumerate(entry_labels):
+#         # Calculate horizontal position based on order
+#         label_y = label_area_top - (i % 3) * (label_area_height / 4)  # 3 rows of labels
+
+#         # Draw vertical line from actual price point to label
+#         ax1.plot([entry['timestamp'], entry['timestamp']],
+#                 [entry['price'], label_y + 20],
+#                 color='blue', linewidth=1, alpha=0.7, linestyle='-')
+
+#         # Add entry label
+#         ax1.text(entry['timestamp'], label_y, entry['label'],
+#                 ha='center', va='center', fontsize=6,
+#                 color='white', weight='bold',
+#                 bbox=dict(boxstyle='round,pad=0.15', facecolor='blue', alpha=0.8))
+
+#     # Position exit labels in lower area with vertical lines
+#     for i, exit in enumerate(exit_labels):
+#         # Calculate horizontal position based on order, offset from entry labels
+#         label_y = label_area_top - label_area_height/2 - (i % 3) * (label_area_height / 4)  # Below entry labels
+
+#         # Draw vertical line from actual price point to label
+#         ax1.plot([exit['timestamp'], exit['timestamp']],
+#                 [exit['price'], label_y + 20],
+#                 color='red', linewidth=1, alpha=0.7, linestyle='-')
+
+#         # Add exit label
+#         ax1.text(exit['timestamp'], label_y, exit['label'],
+#                 ha='center', va='center', fontsize=6,
+#                 color='white', weight='bold',
+#                 bbox=dict(boxstyle='round,pad=0.15', facecolor='red', alpha=0.8))
+
+#     ax1.set_ylabel('Price ($)', fontsize=12)
+#     ax1.set_title('Trading System Backtest Results - Sept 25-29, 2025 (Unseen Data)\n$20,000 Initial Capital',
+#                   fontsize=14, weight='bold')
+#     ax1.grid(True, alpha=0.3)
+#     ax1.legend(loc='upper left')
+
+#     # --- PANEL 2: Trading Signals & Confidence ---
+#     # Plot BTC price on secondary y-axis
+#     ax2_price = ax2.twinx()
+#     ax2_price.plot(data['datetime'], data['close'], color='gray', linewidth=1, alpha=0.6, label='BTC Price')
+#     ax2_price.set_ylabel('BTC Price ($)', fontsize=12)
+#     ax2_price.tick_params(axis='y', labelcolor='gray')
+
+#     # Plot confidence levels and thresholds
+#     ax2.axhline(y=0.65, color='orange', linestyle='--', alpha=0.7, label='Min Confidence (65%)')
+#     ax2.axhline(y=0.60, color='purple', linestyle='--', alpha=0.7, label='Medium Threshold (60%)')
+#     ax2.axhline(y=0.80, color='pink', linestyle='--', alpha=0.7, label='High Threshold (80%)')
+
+#     # Get confidence range for label positioning
+#     confidence_min = 0.5
+#     confidence_max = 1.0
+#     confidence_range = confidence_max - confidence_min
+
+#     # Define label area below the confidence chart
+#     signal_label_area_top = confidence_min - confidence_range * 0.02  # 2% below minimum confidence (much closer)
+#     signal_label_area_height = confidence_range * 0.12  # Use 12% of confidence range for labels (smaller area)
+
+#     # Plot all signals with different styles based on strength and execution
+#     signal_df = pd.DataFrame(all_signals)
+
+#     # Filter signals for plotting (every 4th point to avoid overcrowding)
+#     plot_signals = signal_df[::4].copy()
+
+#     # Store signal labels for positioning below
+#     entry_signal_labels = []
+#     exit_signal_labels = []
+
+#     # Track executed trade numbers for signal panel
+#     executed_trade_counter = 1
+#     for _, signal in plot_signals.iterrows():
+#         confidence = signal['confidence']
+#         executed = signal['executed']
+#         direction = signal['direction']
+#         strength = signal['strength']
+
+#         # Determine color and size
+#         if executed:
+#             color = 'yellow' if direction == 'UP' else 'orange'
+#             size = 60
+#             marker = 'o'
+#         else:
+#             if strength == 'Strong':
+#                 color = 'darkblue' if direction == 'UP' else 'darkred'
+#                 alpha = 0.8
+#             elif strength == 'Medium':
+#                 color = 'blue' if direction == 'UP' else 'red'
+#                 alpha = 0.6
+#             else:  # Weak
+#                 color = 'lightblue' if direction == 'UP' else 'lightcoral'
+#                 alpha = 0.4
+#             size = 20
+#             marker = '^' if direction == 'UP' else 'v'
+
+#         ax2.scatter(signal['timestamp'], confidence,
+#                    c=color, s=size, marker=marker, alpha=0.7,
+#                    edgecolors='black' if executed else 'none', linewidth=0.5)
+
+#         # Store entry signal labels for later positioning
+#         if executed:
+#             entry_signal_labels.append({
+#                 'timestamp': signal['timestamp'],
+#                 'confidence': confidence,
+#                 'label': f'E{executed_trade_counter}',
+#                 'counter': executed_trade_counter
+#             })
+#             executed_trade_counter += 1
+
+#     # Add exit signals for profitable trades (not stop losses)
+#     exit_trade_counter = 1
+#     open_trades = [t for t in trades_log if t['action'] == 'OPEN']
+#     close_trades = [t for t in trades_log if t['action'] == 'CLOSE']
+
+#     # Create trade pairs to match entries with exits
+#     trade_pairs_signals = {}
+#     for trade in open_trades:
+#         trade_pairs_signals[trade['position_id']] = {'open': trade, 'close': None}
+#     for trade in close_trades:
+#         if trade['position_id'] in trade_pairs_signals:
+#             trade_pairs_signals[trade['position_id']]['close'] = trade
+
+#     # Plot exit signals only for profit target exits (not stop losses)
+#     for pair_id, pair in trade_pairs_signals.items():
+#         if pair['open'] and pair['close']:
+#             close_trade = pair['close']
+
+#             # Only show exit signal if it's a profit target (not stop loss)
+#             if 'PROFIT_TARGET' in close_trade['reason']:
+#                 # Find the corresponding exit timestamp in the data
+#                 exit_time = close_trade['timestamp']
+#                 exit_price = close_trade['price']
+
+#                 # Find the closest data point to the exit time for confidence level
+#                 exit_data_idx = data[data['datetime'] <= exit_time].index[-1] if len(data[data['datetime'] <= exit_time]) > 0 else 0
+#                 if exit_data_idx < len(data):
+#                     exit_confidence = data.iloc[exit_data_idx]['confidence']
+
+#                     # Plot exit signal
+#                     ax2.scatter(exit_time, exit_confidence,
+#                                c='green', s=80, marker='s', alpha=0.8,
+#                                edgecolors='darkgreen', linewidth=2)
+
+#                     # Store exit signal labels for later positioning
+#                     exit_signal_labels.append({
+#                         'timestamp': exit_time,
+#                         'confidence': exit_confidence,
+#                         'label': f'X{exit_trade_counter}',
+#                         'counter': exit_trade_counter
+#                     })
+
+#             exit_trade_counter += 1
+
+#     # Sort signal labels by timestamp for proper horizontal spacing
+#     entry_signal_labels.sort(key=lambda x: x['timestamp'])
+#     exit_signal_labels.sort(key=lambda x: x['timestamp'])
+
+#     # Position entry signal labels with smart spacing to avoid overlaps
+#     def get_smart_label_position(labels, base_y, min_spacing_hours=2):
+#         """Calculate positions to avoid horizontal overlaps"""
+#         positions = []
+#         if not labels:
+#             return positions
+
+#         # Sort by timestamp
+#         sorted_labels = sorted(labels, key=lambda x: x['timestamp'])
+
+#         for i, label in enumerate(sorted_labels):
+#             # Start with the base position
+#             y_pos = base_y - (i % 2) * (signal_label_area_height / 3)  # Alternate between 2 rows
+
+#             # Check for horizontal overlap with previous labels
+#             if positions:
+#                 # Convert timestamp to hours for spacing calculation
+#                 current_time = pd.to_datetime(label['timestamp'])
+#                 for prev_label, prev_y in positions:
+#                     prev_time = pd.to_datetime(prev_label['timestamp'])
+#                     time_diff_hours = abs((current_time - prev_time).total_seconds() / 3600)
+
+#                     # If too close horizontally, use different row
+#                     if time_diff_hours < min_spacing_hours and abs(y_pos - prev_y) < signal_label_area_height / 6:
+#                         y_pos = base_y - signal_label_area_height * 0.6 - (i % 2) * (signal_label_area_height / 4)
+#                         break
+
+#             positions.append((label, y_pos))
+
+#         return positions
+
+#     # Position entry signal labels with smart spacing
+#     entry_positions = get_smart_label_position(entry_signal_labels, signal_label_area_top)
+
+#     for entry, label_y in entry_positions:
+#         # Draw simple vertical line from top to bottom of the chart
+#         ax2.axvline(x=entry['timestamp'], color='blue', linewidth=1, alpha=0.6, linestyle='-')
+
+#         # Add entry signal label
+#         ax2.text(entry['timestamp'], label_y, entry['label'],
+#                 ha='center', va='center', fontsize=7,
+#                 color='white', weight='bold',
+#                 bbox=dict(boxstyle='round,pad=0.1', facecolor='blue', alpha=0.8))
+
+#     # Position exit signal labels with smart spacing
+#     exit_base_y = signal_label_area_top - signal_label_area_height * 0.4  # Offset from entry labels
+#     exit_positions = get_smart_label_position(exit_signal_labels, exit_base_y)
+
+#     for exit, label_y in exit_positions:
+#         # Draw simple vertical line from top to bottom of the chart
+#         ax2.axvline(x=exit['timestamp'], color='green', linewidth=1, alpha=0.6, linestyle='-')
+
+#         # Add exit signal label
+#         ax2.text(exit['timestamp'], label_y, exit['label'],
+#                 ha='center', va='center', fontsize=7,
+#                 color='white', weight='bold',
+#                 bbox=dict(boxstyle='round,pad=0.1', facecolor='green', alpha=0.8))
+
+#     ax2.set_ylabel('Signal Confidence', fontsize=12, color='blue')
+#     ax2.set_ylim(0.5, 1.0)
+#     ax2.tick_params(axis='y', labelcolor='blue')
+#     ax2.set_title('Trading Signals & Confidence Levels with BTC Price', fontsize=12)
+#     ax2.grid(True, alpha=0.3)
+
+#     # Create custom legend for signals
+#     from matplotlib.lines import Line2D
+#     legend_elements = [
+#         Line2D([0], [0], marker='o', color='w', markerfacecolor='yellow', markersize=10,
+#                markeredgecolor='black', label='Entry Signal UP'),
+#         Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=10,
+#                markeredgecolor='black', label='Entry Signal DOWN'),
+#         Line2D([0], [0], marker='s', color='w', markerfacecolor='green', markersize=8,
+#                markeredgecolor='darkgreen', label='Exit Signal (Profit)'),
+#         Line2D([0], [0], marker='^', color='w', markerfacecolor='darkblue', markersize=8,
+#                label='Strong UP'),
+#         Line2D([0], [0], marker='v', color='w', markerfacecolor='darkred', markersize=8,
+#                label='Strong DOWN'),
+#         Line2D([0], [0], marker='^', color='w', markerfacecolor='lightblue', markersize=6,
+#                label='Weak UP'),
+#         Line2D([0], [0], marker='v', color='w', markerfacecolor='lightcoral', markersize=6,
+#                label='Weak DOWN'),
+#     ]
+#     ax2.legend(handles=legend_elements, loc='upper left', fontsize=9)
+
+#     # --- PANEL 3: Cumulative Performance ---
+#     # Calculate cumulative P&L
+#     cumulative_pnl = []
+#     trade_times = []
+#     running_pnl = 0
+
+#     for trade in close_trades:
+#         trade_times.append(trade['timestamp'])
+#         running_pnl += trade['pnl']
+#         cumulative_pnl.append(running_pnl)
+
+#     if trade_times:
+#         ax3.plot(trade_times, cumulative_pnl, color='blue', linewidth=2, marker='o', markersize=4)
+#         ax3.axhline(y=0, color='gray', linestyle='--', alpha=0.7)
+
+#         # Fill area
+#         ax3.fill_between(trade_times, cumulative_pnl, 0,
+#                         where=np.array(cumulative_pnl) >= 0, alpha=0.3, color='green')
+#         ax3.fill_between(trade_times, cumulative_pnl, 0,
+#                         where=np.array(cumulative_pnl) < 0, alpha=0.3, color='red')
+
+#         # Add final P&L and trade count text
+#         final_pnl = cumulative_pnl[-1]
+#         total_trades = len(close_trades)
+#         ax3.text(0.02, 0.98, f'Final P&L: ${final_pnl:.2f}\nTotal Trades: {total_trades}',
+#                 transform=ax3.transAxes, fontsize=12, weight='bold',
+#                 verticalalignment='top',
+#                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+#     ax3.set_ylabel('Cumulative P&L ($)', fontsize=12)
+#     ax3.set_xlabel('Date', fontsize=12)
+#     ax3.set_title('Cumulative Trading Performance', fontsize=12)
+#     ax3.grid(True, alpha=0.3)
+
+#     # Format x-axis for shorter period (daily detail)
+#     for ax in [ax1, ax2, ax3]:
+#         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+#         ax.xaxis.set_major_locator(mdates.DayLocator(interval=2))
+
+#     plt.setp(ax1.get_xticklabels(), visible=False)
+#     plt.setp(ax2.get_xticklabels(), visible=False)
+#     plt.xticks(rotation=45)
+
+#     plt.tight_layout()
+#     plt.savefig(save_path, dpi=300, bbox_inches='tight')
+#     print(f"💾 Figure_1.png style chart saved to {save_path}")
+
+#     return fig
 
 def main():
     """Generate Figure_1.png style visualization"""
@@ -1095,6 +1230,11 @@ def main():
     parser.add_argument('--log', dest='log_path', default=DEFAULT_LOG_FILENAME, help='Path to save trading log output')
     parser.add_argument('--figure', dest='figure_path', default=DEFAULT_FIGURE_FILENAME, help='Path to save generated figure')
     parser.add_argument('--config', dest='config_path', help='Optional JSON file specifying trading-system parameters')
+    parser.add_argument(
+        '--artifacts',
+        dest='artifacts_path',
+        help='Optional directory containing pretrained GRU artifacts (model.keras, scaler.pkl, meta.json)',
+    )
     args = parser.parse_args()
 
     # Organize outputs inside a dedicated backtest subdirectory when using defaults
@@ -1120,11 +1260,24 @@ def main():
     args.log_path = log_path
     args.figure_path = figure_path
 
+    artifacts_path: Optional[Path] = None
+    if args.artifacts_path:
+        artifacts_path = Path(args.artifacts_path)
+        if not artifacts_path.exists():
+            raise FileNotFoundError(f"Artifacts directory not found: {artifacts_path}")
+
     success = False
     try:
         # Load data and generate signals
         data = load_backtest_data(args.start_date, args.end_date)
-        data, model_metrics = generate_signals_with_tracking(data, args.start_date, args.end_date)
+        if artifacts_path is None:
+            _purge_gru_backtest_artifacts()
+        data, model_metrics = generate_signals_with_tracking(
+            data,
+            args.start_date,
+            args.end_date,
+            artifacts_path=artifacts_path,
+        )
 
         # Run trading simulation
         system_config = None
@@ -1162,7 +1315,20 @@ def main():
                     ts = serializable.get('timestamp')
                     if isinstance(ts, pd.Timestamp):
                         serializable['timestamp'] = ts.isoformat()
-                    signal_file.write(json.dumps(serializable, default=str) + '\n')
+                    for key in ('price', 'confidence', 'prob_up'):
+                        val = serializable.get(key)
+                        if val is None:
+                            continue
+                        if isinstance(val, (float, int)):
+                            serializable[key] = float(val)
+                        else:
+                            try:
+                                serializable[key] = float(val)
+                            except (TypeError, ValueError):
+                                pass
+                        if isinstance(serializable.get(key), float) and not np.isfinite(serializable[key]):
+                            serializable[key] = None
+                    signal_file.write(json.dumps(serializable) + '\n')
             print(f"📝 Signal log saved to {signal_log_path}")
 
         start_label = pd.to_datetime(args.start_date).strftime('%b %d, %Y')
@@ -1191,7 +1357,6 @@ def main():
             json.dump(metrics, f, indent=2, default=float)
         print(f"📄 Performance metrics: {metrics_path}")
 
-        print("\n✅ Figure_1.png style visualization completed!")
         success = True
 
     except Exception as e:
@@ -1200,13 +1365,10 @@ def main():
         traceback.print_exc()
         success = False
     finally:
-        _purge_gru_backtest_artifacts()
+        if artifacts_path is None:
+            _purge_gru_backtest_artifacts()
 
     return success
 
 if __name__ == "__main__":
-    success = main()
-    if success:
-        print("\n🎉 Figure_1.png style chart generated successfully!")
-    else:
-        print("\n❌ Chart generation failed.")
+    main()

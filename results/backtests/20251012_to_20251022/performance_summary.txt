@@ -1,0 +1,9 @@
+Daily Performance:
+  2025-10-15: trades=8, wins=4, win_rate=50.0%, net_pnl=-1.93
+  2025-10-16: trades=31, wins=11, win_rate=35.5%, net_pnl=-49.44
+  2025-10-17: trades=25, wins=13, win_rate=52.0%, net_pnl=36.81
+  2025-10-18: trades=11, wins=0, win_rate=0.0%, net_pnl=-38.61
+  2025-10-19: trades=37, wins=11, win_rate=29.7%, net_pnl=-28.19
+  2025-10-20: trades=30, wins=21, win_rate=70.0%, net_pnl=69.23
+  2025-10-21: trades=37, wins=29, win_rate=78.4%, net_pnl=238.45
+  2025-10-22: trades=1, wins=0, win_rate=0.0%, net_pnl=-4.29

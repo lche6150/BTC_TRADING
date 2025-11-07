@@ -1,15 +1,9 @@
 {
   "name": "GRU_Deep_Fast",
   "architecture": "gru_deep",
-  "sequence_length": 35,
-  "lstm_units": [
-    80,
-    40,
-    20
-  ],
-  "dense_units": [
-    24
-  ],
+  "sequence_length": 200,
+  "lstm_units": [80, 40, 20],
+  "dense_units": [24],
   "dropout": 0.2,
   "l2_reg": 0.0001,
   "batch_size": 128,

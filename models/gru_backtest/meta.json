@@ -14,6 +14,6 @@
     "stoch_k",
     "cci"
   ],
-  "sequence_length": 35,
+  "sequence_length": 200,
   "best_threshold": 0.5
 }

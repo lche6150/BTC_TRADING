@@ -375,6 +375,16 @@ def process_new_signal(system: ComprehensiveTradingSystem,
             register_pending_evaluation(pending_evaluations, pending_record.copy())
             pending_registered = True
 
+    # Update existing positions first with the latest price
+    updates = system.update_positions(current_price, current_time)
+    for update in updates:
+        print(f"[EXIT] {update}")
+        log_event(log_file, "EXIT", {
+            "timestamp": current_time,
+            "price": current_price,
+            **update,
+        })
+
     if confidence < system.min_confidence:
         payload = {
             **base_payload,
@@ -386,16 +396,6 @@ def process_new_signal(system: ComprehensiveTradingSystem,
         system.last_signal_decision = payload.copy()
         log_and_register(payload)
         return
-
-    # Update existing positions first with the latest price
-    updates = system.update_positions(current_price, current_time)
-    for update in updates:
-        print(f"[EXIT] {update}")
-        log_event(log_file, "EXIT", {
-            "timestamp": current_time,
-            "price": current_price,
-            **update,
-        })
 
     position = system.process_signal(
         direction,
@@ -414,7 +414,7 @@ def process_new_signal(system: ComprehensiveTradingSystem,
 
     if position:
         print(f"[ENTRY] {position.signal_id} {direction} size={position.position_size_pct:.2%} price={current_price:.2f}")
-        log_event(log_file, "ENTRY", {
+        entry_payload = {
             "timestamp": current_time,
             "price": current_price,
             "direction": direction,
@@ -422,7 +422,32 @@ def process_new_signal(system: ComprehensiveTradingSystem,
             "prob_up": prob_info['prob_up'],
             "position_size_pct": position.position_size_pct,
             "position_id": position.signal_id,
-        })
+        }
+        stop_pct = getattr(position, "stop_pct", None)
+        stop_loss = getattr(position, "stop_loss", None)
+        target1_price = getattr(position, "target_1", None)
+        target2_price = getattr(position, "target_2", None)
+        target1_pct = getattr(position, "target1_pct", None)
+        target2_pct = getattr(position, "target2_pct", None)
+
+        if stop_loss is not None:
+            entry_payload["stop_loss"] = float(stop_loss)
+        if stop_pct is not None:
+            entry_payload["stop_pct"] = float(stop_pct)
+        if target1_price is not None:
+            entry_payload["target1_price"] = float(target1_price)
+        if target1_pct is not None:
+            entry_payload["target1_pct"] = float(target1_pct)
+        if stop_pct:
+            entry_payload["target1_multiplier"] = float(target1_pct / stop_pct) if target1_pct is not None else None
+        if target2_price is not None:
+            entry_payload["target2_price"] = float(target2_price)
+        if target2_pct is not None:
+            entry_payload["target2_pct"] = float(target2_pct)
+        if stop_pct:
+            entry_payload["target2_multiplier"] = float(target2_pct / stop_pct) if target2_pct is not None else None
+
+        log_event(log_file, "ENTRY", entry_payload)
         payload.update({
             "status": "accepted",
             "position_id": position.signal_id,

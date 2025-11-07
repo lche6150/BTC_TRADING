@@ -54,7 +54,7 @@ def create_training_sets(df: pd.DataFrame):
 
     config = load_optimized_config()
     sequence_length = config["sequence_length"]
-    future_periods = 6
+    future_periods = 20
 
     labels = generate_stop_aligned_labels(features, future_periods=future_periods)
     targets = labels[labels != -1]

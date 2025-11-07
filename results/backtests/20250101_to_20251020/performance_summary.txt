@@ -1,0 +1,349 @@
+Daily Performance:
+  2025-01-06: trades=14, wins=11, win_rate=78.6%, net_pnl=35.78, avg_hold=210.0m
+  2025-01-07: trades=22, wins=14, win_rate=63.6%, net_pnl=74.30, avg_hold=187.5m
+  2025-01-08: trades=13, wins=8, win_rate=61.5%, net_pnl=13.87, avg_hold=130.4m
+  2025-01-09: trades=18, wins=14, win_rate=77.8%, net_pnl=49.65, avg_hold=116.7m
+  2025-01-10: trades=14, wins=9, win_rate=64.3%, net_pnl=94.42, avg_hold=87.9m
+  2025-01-11: trades=11, wins=4, win_rate=36.4%, net_pnl=-5.37, avg_hold=595.9m
+  2025-01-12: trades=23, wins=18, win_rate=78.3%, net_pnl=42.67, avg_hold=477.4m
+  2025-01-13: trades=24, wins=20, win_rate=83.3%, net_pnl=120.84, avg_hold=86.9m
+  2025-01-14: trades=10, wins=7, win_rate=70.0%, net_pnl=39.12, avg_hold=129.0m
+  2025-01-15: trades=20, wins=12, win_rate=60.0%, net_pnl=56.23, avg_hold=237.0m
+  2025-01-16: trades=17, wins=10, win_rate=58.8%, net_pnl=29.14, avg_hold=252.4m
+  2025-01-17: trades=13, wins=9, win_rate=69.2%, net_pnl=42.12, avg_hold=155.8m
+  2025-01-18: trades=17, wins=13, win_rate=76.5%, net_pnl=71.75, avg_hold=193.2m
+  2025-01-19: trades=19, wins=9, win_rate=47.4%, net_pnl=33.32, avg_hold=129.5m
+  2025-01-20: trades=12, wins=8, win_rate=66.7%, net_pnl=95.18, avg_hold=65.0m
+  2025-01-21: trades=20, wins=11, win_rate=55.0%, net_pnl=15.84, avg_hold=139.5m
+  2025-01-22: trades=17, wins=8, win_rate=47.1%, net_pnl=-25.96, avg_hold=270.0m
+  2025-01-23: trades=22, wins=15, win_rate=68.2%, net_pnl=131.55, avg_hold=115.9m
+  2025-01-24: trades=21, wins=10, win_rate=47.6%, net_pnl=0.15, avg_hold=149.3m
+  2025-01-25: trades=6, wins=2, win_rate=33.3%, net_pnl=-8.90, avg_hold=320.0m
+  2025-01-26: trades=40, wins=30, win_rate=75.0%, net_pnl=126.07, avg_hold=689.2m
+  2025-01-27: trades=13, wins=10, win_rate=76.9%, net_pnl=59.48, avg_hold=105.0m
+  2025-01-28: trades=12, wins=7, win_rate=58.3%, net_pnl=11.76, avg_hold=182.5m
+  2025-01-29: trades=18, wins=8, win_rate=44.4%, net_pnl=-37.58, avg_hold=269.2m
+  2025-01-30: trades=15, wins=6, win_rate=40.0%, net_pnl=-13.16, avg_hold=220.0m
+  2025-01-31: trades=26, wins=20, win_rate=76.9%, net_pnl=105.48, avg_hold=261.9m
+  2025-02-01: trades=19, wins=14, win_rate=73.7%, net_pnl=48.77, avg_hold=376.6m
+  2025-02-02: trades=20, wins=16, win_rate=80.0%, net_pnl=39.19, avg_hold=120.0m
+  2025-02-03: trades=20, wins=12, win_rate=60.0%, net_pnl=88.45, avg_hold=78.8m
+  2025-02-04: trades=14, wins=11, win_rate=78.6%, net_pnl=76.85, avg_hold=100.7m
+  2025-02-05: trades=20, wins=13, win_rate=65.0%, net_pnl=54.18, avg_hold=183.0m
+  2025-02-06: trades=25, wins=13, win_rate=52.0%, net_pnl=21.78, avg_hold=148.2m
+  2025-02-07: trades=22, wins=17, win_rate=77.3%, net_pnl=89.30, avg_hold=177.3m
+  2025-02-08: trades=10, wins=4, win_rate=40.0%, net_pnl=-20.04, avg_hold=429.0m
+  2025-02-09: trades=31, wins=13, win_rate=41.9%, net_pnl=-38.14, avg_hold=317.4m
+  2025-02-10: trades=17, wins=7, win_rate=41.2%, net_pnl=4.96, avg_hold=126.2m
+  2025-02-11: trades=26, wins=15, win_rate=57.7%, net_pnl=46.57, avg_hold=223.3m
+  2025-02-12: trades=14, wins=7, win_rate=50.0%, net_pnl=48.46, avg_hold=208.9m
+  2025-02-13: trades=14, wins=10, win_rate=71.4%, net_pnl=35.38, avg_hold=317.1m
+  2025-02-14: trades=20, wins=6, win_rate=30.0%, net_pnl=-29.12, avg_hold=349.5m
+  2025-02-16: trades=38, wins=14, win_rate=36.8%, net_pnl=-62.89, avg_hold=855.4m
+  2025-02-17: trades=19, wins=8, win_rate=42.1%, net_pnl=-41.75, avg_hold=423.9m
+  2025-02-18: trades=23, wins=15, win_rate=65.2%, net_pnl=63.69, avg_hold=187.8m
+  2025-02-19: trades=15, wins=7, win_rate=46.7%, net_pnl=-11.16, avg_hold=385.0m
+  2025-02-20: trades=21, wins=8, win_rate=38.1%, net_pnl=-30.57, avg_hold=407.1m
+  2025-02-21: trades=29, wins=25, win_rate=86.2%, net_pnl=150.97, avg_hold=282.4m
+  2025-02-22: trades=3, wins=2, win_rate=66.7%, net_pnl=13.54, avg_hold=445.0m
+  2025-02-23: trades=25, wins=9, win_rate=36.0%, net_pnl=-38.52, avg_hold=667.2m
+  2025-02-24: trades=36, wins=26, win_rate=72.2%, net_pnl=108.24, avg_hold=291.2m
+  2025-02-25: trades=15, wins=9, win_rate=60.0%, net_pnl=80.12, avg_hold=150.0m
+  2025-02-26: trades=20, wins=19, win_rate=95.0%, net_pnl=176.92, avg_hold=157.5m
+  2025-02-27: trades=18, wins=16, win_rate=88.9%, net_pnl=127.95, avg_hold=140.8m
+  2025-02-28: trades=21, wins=12, win_rate=57.1%, net_pnl=98.76, avg_hold=80.0m
+  2025-03-01: trades=16, wins=13, win_rate=81.2%, net_pnl=55.98, avg_hold=263.4m
+  2025-03-02: trades=22, wins=8, win_rate=36.4%, net_pnl=47.97, avg_hold=141.8m
+  2025-03-03: trades=14, wins=6, win_rate=42.9%, net_pnl=40.38, avg_hold=63.2m
+  2025-03-04: trades=13, wins=5, win_rate=38.5%, net_pnl=-42.30, avg_hold=201.9m
+  2025-03-05: trades=19, wins=11, win_rate=57.9%, net_pnl=35.80, avg_hold=125.5m
+  2025-03-06: trades=26, wins=14, win_rate=53.8%, net_pnl=24.84, avg_hold=58.3m
+  2025-03-07: trades=11, wins=5, win_rate=45.5%, net_pnl=12.80, avg_hold=81.8m
+  2025-03-08: trades=4, wins=2, win_rate=50.0%, net_pnl=-5.98, avg_hold=423.8m
+  2025-03-09: trades=26, wins=20, win_rate=76.9%, net_pnl=110.97, avg_hold=212.3m
+  2025-03-10: trades=19, wins=17, win_rate=89.5%, net_pnl=235.10, avg_hold=108.9m
+  2025-03-11: trades=9, wins=5, win_rate=55.6%, net_pnl=64.39, avg_hold=53.3m
+  2025-03-12: trades=17, wins=14, win_rate=82.4%, net_pnl=87.95, avg_hold=122.6m
+  2025-03-13: trades=17, wins=8, win_rate=47.1%, net_pnl=-11.89, avg_hold=105.0m
+  2025-03-14: trades=22, wins=7, win_rate=31.8%, net_pnl=-61.53, avg_hold=114.5m
+  2025-03-15: trades=5, wins=5, win_rate=100.0%, net_pnl=21.59, avg_hold=543.0m
+  2025-03-16: trades=34, wins=21, win_rate=61.8%, net_pnl=66.92, avg_hold=298.7m
+  2025-03-17: trades=17, wins=12, win_rate=70.6%, net_pnl=35.58, avg_hold=178.2m
+  2025-03-18: trades=20, wins=13, win_rate=65.0%, net_pnl=84.53, avg_hold=156.8m
+  2025-03-19: trades=20, wins=11, win_rate=55.0%, net_pnl=35.34, avg_hold=145.5m
+  2025-03-20: trades=16, wins=12, win_rate=75.0%, net_pnl=51.92, avg_hold=203.4m
+  2025-03-21: trades=15, wins=6, win_rate=40.0%, net_pnl=-12.26, avg_hold=227.0m
+  2025-03-22: trades=7, wins=1, win_rate=14.3%, net_pnl=-29.58, avg_hold=709.3m
+  2025-03-23: trades=34, wins=15, win_rate=44.1%, net_pnl=-17.60, avg_hold=638.4m
+  2025-03-24: trades=29, wins=15, win_rate=51.7%, net_pnl=16.96, avg_hold=110.7m
+  2025-03-25: trades=21, wins=14, win_rate=66.7%, net_pnl=46.58, avg_hold=240.7m
+  2025-03-26: trades=16, wins=11, win_rate=68.8%, net_pnl=36.33, avg_hold=218.4m
+  2025-03-27: trades=22, wins=15, win_rate=68.2%, net_pnl=47.85, avg_hold=315.0m
+  2025-03-28: trades=19, wins=12, win_rate=63.2%, net_pnl=48.58, avg_hold=134.2m
+  2025-03-29: trades=15, wins=13, win_rate=86.7%, net_pnl=76.28, avg_hold=202.0m
+  2025-03-30: trades=19, wins=11, win_rate=57.9%, net_pnl=31.95, avg_hold=353.7m
+  2025-03-31: trades=17, wins=6, win_rate=35.3%, net_pnl=-57.66, avg_hold=117.4m
+  2025-04-01: trades=21, wins=12, win_rate=57.1%, net_pnl=33.53, avg_hold=197.9m
+  2025-04-02: trades=32, wins=21, win_rate=65.6%, net_pnl=166.21, avg_hold=184.2m
+  2025-04-03: trades=13, wins=11, win_rate=84.6%, net_pnl=79.52, avg_hold=236.5m
+  2025-04-04: trades=17, wins=11, win_rate=64.7%, net_pnl=51.63, avg_hold=97.9m
+  2025-04-05: trades=10, wins=5, win_rate=50.0%, net_pnl=-0.53, avg_hold=357.0m
+  2025-04-06: trades=29, wins=20, win_rate=69.0%, net_pnl=77.87, avg_hold=272.6m
+  2025-04-07: trades=17, wins=12, win_rate=70.6%, net_pnl=121.14, avg_hold=91.8m
+  2025-04-08: trades=23, wins=18, win_rate=78.3%, net_pnl=109.63, avg_hold=88.0m
+  2025-04-09: trades=18, wins=13, win_rate=72.2%, net_pnl=140.97, avg_hold=110.8m
+  2025-04-10: trades=15, wins=6, win_rate=40.0%, net_pnl=-20.36, avg_hold=100.0m
+  2025-04-11: trades=12, wins=3, win_rate=25.0%, net_pnl=-44.48, avg_hold=100.0m
+  2025-04-12: trades=17, wins=13, win_rate=76.5%, net_pnl=78.98, avg_hold=199.4m
+  2025-04-13: trades=16, wins=5, win_rate=31.2%, net_pnl=-24.20, avg_hold=102.2m
+  2025-04-14: trades=15, wins=7, win_rate=46.7%, net_pnl=-17.56, avg_hold=170.0m
+  2025-04-15: trades=12, wins=2, win_rate=16.7%, net_pnl=-37.82, avg_hold=161.2m
+  2025-04-16: trades=17, wins=5, win_rate=29.4%, net_pnl=-42.76, avg_hold=153.5m
+  2025-04-17: trades=14, wins=9, win_rate=64.3%, net_pnl=29.88, avg_hold=178.9m
+  2025-04-18: trades=5, wins=2, win_rate=40.0%, net_pnl=-5.01, avg_hold=684.0m
+  2025-04-19: trades=25, wins=17, win_rate=68.0%, net_pnl=62.32, avg_hold=783.0m
+  2025-04-20: trades=31, wins=22, win_rate=71.0%, net_pnl=98.99, avg_hold=691.0m
+  2025-04-21: trades=18, wins=11, win_rate=61.1%, net_pnl=30.05, avg_hold=265.8m
+  2025-04-22: trades=14, wins=11, win_rate=78.6%, net_pnl=88.92, avg_hold=160.7m
+  2025-04-23: trades=15, wins=9, win_rate=60.0%, net_pnl=22.30, avg_hold=131.0m
+  2025-04-24: trades=19, wins=9, win_rate=47.4%, net_pnl=5.03, avg_hold=189.5m
+  2025-04-25: trades=16, wins=10, win_rate=62.5%, net_pnl=7.40, avg_hold=186.6m
+  2025-04-26: trades=6, wins=1, win_rate=16.7%, net_pnl=-22.06, avg_hold=437.5m
+  2025-04-27: trades=19, wins=10, win_rate=52.6%, net_pnl=-2.89, avg_hold=496.6m
+  2025-04-28: trades=23, wins=15, win_rate=65.2%, net_pnl=69.52, avg_hold=218.5m
+  2025-04-29: trades=21, wins=15, win_rate=71.4%, net_pnl=29.55, avg_hold=297.9m
+  2025-04-30: trades=17, wins=14, win_rate=82.4%, net_pnl=93.45, avg_hold=237.4m
+  2025-05-01: trades=16, wins=12, win_rate=75.0%, net_pnl=74.27, avg_hold=180.9m
+  2025-05-02: trades=23, wins=13, win_rate=56.5%, net_pnl=12.30, avg_hold=315.0m
+  2025-05-03: trades=11, wins=0, win_rate=0.0%, net_pnl=-70.54, avg_hold=308.2m
+  2025-05-04: trades=21, wins=15, win_rate=71.4%, net_pnl=86.89, avg_hold=716.4m
+  2025-05-05: trades=19, wins=13, win_rate=68.4%, net_pnl=-1.22, avg_hold=330.8m
+  2025-05-06: trades=21, wins=12, win_rate=57.1%, net_pnl=-4.81, avg_hold=241.4m
+  2025-05-07: trades=17, wins=9, win_rate=52.9%, net_pnl=-11.41, avg_hold=201.2m
+  2025-05-08: trades=21, wins=20, win_rate=95.2%, net_pnl=191.19, avg_hold=129.3m
+  2025-05-09: trades=13, wins=7, win_rate=53.8%, net_pnl=14.68, avg_hold=123.5m
+  2025-05-10: trades=32, wins=25, win_rate=78.1%, net_pnl=138.03, avg_hold=337.5m
+  2025-05-11: trades=12, wins=7, win_rate=58.3%, net_pnl=1.89, avg_hold=293.8m
+  2025-05-12: trades=12, wins=8, win_rate=66.7%, net_pnl=39.32, avg_hold=236.2m
+  2025-05-13: trades=18, wins=10, win_rate=55.6%, net_pnl=-18.61, avg_hold=188.3m
+  2025-05-14: trades=13, wins=6, win_rate=46.2%, net_pnl=-6.61, avg_hold=280.4m
+  2025-05-15: trades=30, wins=14, win_rate=46.7%, net_pnl=-9.27, avg_hold=201.0m
+  2025-05-16: trades=13, wins=8, win_rate=61.5%, net_pnl=-10.17, avg_hold=373.8m
+  2025-05-17: trades=9, wins=6, win_rate=66.7%, net_pnl=-10.34, avg_hold=508.3m
+  2025-05-18: trades=28, wins=17, win_rate=60.7%, net_pnl=23.56, avg_hold=479.5m
+  2025-05-19: trades=14, wins=13, win_rate=92.9%, net_pnl=87.86, avg_hold=135.0m
+  2025-05-20: trades=25, wins=13, win_rate=52.0%, net_pnl=16.82, avg_hold=151.8m
+  2025-05-21: trades=23, wins=11, win_rate=47.8%, net_pnl=48.49, avg_hold=110.2m
+  2025-05-22: trades=13, wins=8, win_rate=61.5%, net_pnl=35.74, avg_hold=204.2m
+  2025-05-23: trades=25, wins=19, win_rate=76.0%, net_pnl=112.62, avg_hold=268.2m
+  2025-05-24: trades=27, wins=21, win_rate=77.8%, net_pnl=107.73, avg_hold=300.6m
+  2025-05-25: trades=13, wins=5, win_rate=38.5%, net_pnl=-12.23, avg_hold=189.2m
+  2025-05-26: trades=12, wins=1, win_rate=8.3%, net_pnl=-59.38, avg_hold=215.0m
+  2025-05-27: trades=23, wins=16, win_rate=69.6%, net_pnl=58.82, avg_hold=328.7m
+  2025-05-28: trades=18, wins=13, win_rate=72.2%, net_pnl=56.51, avg_hold=305.0m
+  2025-05-29: trades=21, wins=13, win_rate=61.9%, net_pnl=51.22, avg_hold=185.0m
+  2025-05-30: trades=14, wins=7, win_rate=50.0%, net_pnl=-7.50, avg_hold=249.6m
+  2025-05-31: trades=7, wins=5, win_rate=71.4%, net_pnl=10.50, avg_hold=492.9m
+  2025-06-01: trades=24, wins=19, win_rate=79.2%, net_pnl=44.73, avg_hold=488.8m
+  2025-06-02: trades=26, wins=13, win_rate=50.0%, net_pnl=9.20, avg_hold=379.6m
+  2025-06-03: trades=25, wins=21, win_rate=84.0%, net_pnl=135.01, avg_hold=213.0m
+  2025-06-04: trades=16, wins=10, win_rate=62.5%, net_pnl=27.65, avg_hold=400.3m
+  2025-06-05: trades=19, wins=11, win_rate=57.9%, net_pnl=45.07, avg_hold=204.5m
+  2025-06-06: trades=13, wins=6, win_rate=46.2%, net_pnl=1.00, avg_hold=165.0m
+  2025-06-07: trades=11, wins=6, win_rate=54.5%, net_pnl=17.75, avg_hold=450.0m
+  2025-06-08: trades=18, wins=1, win_rate=5.6%, net_pnl=-101.04, avg_hold=363.3m
+  2025-06-09: trades=30, wins=20, win_rate=66.7%, net_pnl=107.91, avg_hold=442.0m
+  2025-06-10: trades=16, wins=6, win_rate=37.5%, net_pnl=-10.66, avg_hold=244.7m
+  2025-06-11: trades=18, wins=9, win_rate=50.0%, net_pnl=-6.96, avg_hold=400.0m
+  2025-06-12: trades=22, wins=11, win_rate=50.0%, net_pnl=-1.95, avg_hold=214.1m
+  2025-06-13: trades=14, wins=9, win_rate=64.3%, net_pnl=31.43, avg_hold=219.6m
+  2025-06-14: trades=17, wins=10, win_rate=58.8%, net_pnl=20.33, avg_hold=515.3m
+  2025-06-15: trades=15, wins=7, win_rate=46.7%, net_pnl=-9.39, avg_hold=355.0m
+  2025-06-16: trades=38, wins=23, win_rate=60.5%, net_pnl=104.86, avg_hold=274.3m
+  2025-06-17: trades=17, wins=9, win_rate=52.9%, net_pnl=-7.90, avg_hold=150.9m
+  2025-06-18: trades=25, wins=14, win_rate=56.0%, net_pnl=13.67, avg_hold=201.6m
+  2025-06-19: trades=8, wins=7, win_rate=87.5%, net_pnl=28.30, avg_hold=410.6m
+  2025-06-20: trades=33, wins=29, win_rate=87.9%, net_pnl=224.84, avg_hold=360.0m
+  2025-06-21: trades=15, wins=8, win_rate=53.3%, net_pnl=11.68, avg_hold=193.0m
+  2025-06-22: trades=19, wins=7, win_rate=36.8%, net_pnl=-40.35, avg_hold=159.5m
+  2025-06-23: trades=22, wins=19, win_rate=86.4%, net_pnl=204.28, avg_hold=166.4m
+  2025-06-24: trades=16, wins=11, win_rate=68.8%, net_pnl=23.75, avg_hold=416.2m
+  2025-06-25: trades=18, wins=11, win_rate=61.1%, net_pnl=23.72, avg_hold=245.0m
+  2025-06-26: trades=15, wins=5, win_rate=33.3%, net_pnl=-42.07, avg_hold=430.0m
+  2025-06-27: trades=23, wins=11, win_rate=47.8%, net_pnl=-54.64, avg_hold=512.6m
+  2025-06-29: trades=43, wins=20, win_rate=46.5%, net_pnl=-36.44, avg_hold=1026.3m
+  2025-06-30: trades=18, wins=10, win_rate=55.6%, net_pnl=7.73, avg_hold=398.3m
+  2025-07-01: trades=18, wins=2, win_rate=11.1%, net_pnl=-98.74, avg_hold=251.7m
+  2025-07-02: trades=30, wins=19, win_rate=63.3%, net_pnl=101.69, avg_hold=185.0m
+  2025-07-03: trades=14, wins=13, win_rate=92.9%, net_pnl=41.15, avg_hold=325.7m
+  2025-07-04: trades=20, wins=4, win_rate=20.0%, net_pnl=-72.44, avg_hold=259.5m
+  2025-07-06: trades=42, wins=11, win_rate=26.2%, net_pnl=-132.59, avg_hold=1136.8m
+  2025-07-07: trades=12, wins=9, win_rate=75.0%, net_pnl=45.16, avg_hold=451.2m
+  2025-07-08: trades=18, wins=9, win_rate=50.0%, net_pnl=-42.47, avg_hold=316.7m
+  2025-07-09: trades=24, wins=10, win_rate=41.7%, net_pnl=-39.18, avg_hold=380.6m
+  2025-07-10: trades=20, wins=16, win_rate=80.0%, net_pnl=129.75, avg_hold=251.2m
+  2025-07-11: trades=10, wins=5, win_rate=50.0%, net_pnl=-2.41, avg_hold=193.5m
+  2025-07-12: trades=4, wins=1, win_rate=25.0%, net_pnl=-16.74, avg_hold=510.0m
+  2025-07-13: trades=15, wins=11, win_rate=73.3%, net_pnl=50.16, avg_hold=640.0m
+  2025-07-14: trades=28, wins=20, win_rate=71.4%, net_pnl=136.18, avg_hold=161.2m
+  2025-07-15: trades=24, wins=12, win_rate=50.0%, net_pnl=45.76, avg_hold=150.0m
+  2025-07-16: trades=13, wins=6, win_rate=46.2%, net_pnl=-25.95, avg_hold=173.1m
+  2025-07-17: trades=26, wins=22, win_rate=84.6%, net_pnl=148.92, avg_hold=181.7m
+  2025-07-18: trades=28, wins=17, win_rate=60.7%, net_pnl=62.17, avg_hold=192.9m
+  2025-07-19: trades=6, wins=3, win_rate=50.0%, net_pnl=2.93, avg_hold=565.0m
+  2025-07-20: trades=38, wins=19, win_rate=50.0%, net_pnl=-28.18, avg_hold=973.8m
+  2025-07-21: trades=20, wins=13, win_rate=65.0%, net_pnl=55.27, avg_hold=177.8m
+  2025-07-22: trades=15, wins=7, win_rate=46.7%, net_pnl=15.39, avg_hold=182.0m
+  2025-07-23: trades=18, wins=7, win_rate=38.9%, net_pnl=-29.95, avg_hold=210.0m
+  2025-07-24: trades=18, wins=10, win_rate=55.6%, net_pnl=10.24, avg_hold=245.0m
+  2025-07-25: trades=21, wins=17, win_rate=81.0%, net_pnl=112.25, avg_hold=153.6m
+  2025-07-26: trades=3, wins=0, win_rate=0.0%, net_pnl=-19.25, avg_hold=405.0m
+  2025-07-27: trades=31, wins=21, win_rate=67.7%, net_pnl=112.03, avg_hold=611.1m
+  2025-07-28: trades=26, wins=12, win_rate=46.2%, net_pnl=-11.07, avg_hold=343.8m
+  2025-07-29: trades=25, wins=20, win_rate=80.0%, net_pnl=110.54, avg_hold=405.0m
+  2025-07-30: trades=30, wins=17, win_rate=56.7%, net_pnl=47.66, avg_hold=397.0m
+  2025-07-31: trades=12, wins=7, win_rate=58.3%, net_pnl=17.47, avg_hold=290.0m
+  2025-08-01: trades=20, wins=15, win_rate=75.0%, net_pnl=99.65, avg_hold=131.2m
+  2025-08-02: trades=15, wins=15, win_rate=100.0%, net_pnl=107.88, avg_hold=398.0m
+  2025-08-03: trades=18, wins=8, win_rate=44.4%, net_pnl=-10.90, avg_hold=410.0m
+  2025-08-04: trades=25, wins=13, win_rate=52.0%, net_pnl=17.82, avg_hold=390.6m
+  2025-08-05: trades=19, wins=6, win_rate=31.6%, net_pnl=-81.99, avg_hold=279.5m
+  2025-08-06: trades=24, wins=10, win_rate=41.7%, net_pnl=6.26, avg_hold=284.4m
+  2025-08-07: trades=27, wins=19, win_rate=70.4%, net_pnl=112.22, avg_hold=330.6m
+  2025-08-08: trades=15, wins=4, win_rate=26.7%, net_pnl=-67.58, avg_hold=450.0m
+  2025-08-09: trades=11, wins=9, win_rate=81.8%, net_pnl=55.87, avg_hold=467.7m
+  2025-08-10: trades=27, wins=18, win_rate=66.7%, net_pnl=91.74, avg_hold=352.8m
+  2025-08-11: trades=26, wins=17, win_rate=65.4%, net_pnl=89.21, avg_hold=167.3m
+  2025-08-12: trades=17, wins=4, win_rate=23.5%, net_pnl=-62.37, avg_hold=334.4m
+  2025-08-13: trades=16, wins=9, win_rate=56.2%, net_pnl=-14.24, avg_hold=253.1m
+  2025-08-14: trades=16, wins=12, win_rate=75.0%, net_pnl=65.35, avg_hold=172.5m
+  2025-08-15: trades=16, wins=12, win_rate=75.0%, net_pnl=79.67, avg_hold=309.4m
+  2025-08-16: trades=2, wins=0, win_rate=0.0%, net_pnl=-14.71, avg_hold=135.0m
+  2025-08-17: trades=27, wins=10, win_rate=37.0%, net_pnl=-65.03, avg_hold=896.7m
+  2025-08-18: trades=32, wins=23, win_rate=71.9%, net_pnl=118.66, avg_hold=394.7m
+  2025-08-19: trades=19, wins=13, win_rate=68.4%, net_pnl=63.79, avg_hold=246.3m
+  2025-08-20: trades=11, wins=5, win_rate=45.5%, net_pnl=-20.99, avg_hold=115.9m
+  2025-08-21: trades=13, wins=6, win_rate=46.2%, net_pnl=-4.24, avg_hold=294.2m
+  2025-08-22: trades=25, wins=14, win_rate=56.0%, net_pnl=107.24, avg_hold=291.6m
+  2025-08-23: trades=9, wins=5, win_rate=55.6%, net_pnl=14.37, avg_hold=360.0m
+  2025-08-24: trades=35, wins=17, win_rate=48.6%, net_pnl=-42.82, avg_hold=557.6m
+  2025-08-25: trades=19, wins=16, win_rate=84.2%, net_pnl=122.66, avg_hold=164.2m
+  2025-08-26: trades=17, wins=7, win_rate=41.2%, net_pnl=-16.69, avg_hold=175.6m
+  2025-08-27: trades=19, wins=16, win_rate=84.2%, net_pnl=86.14, avg_hold=267.6m
+  2025-08-28: trades=12, wins=10, win_rate=83.3%, net_pnl=55.33, avg_hold=346.2m
+  2025-08-29: trades=32, wins=20, win_rate=62.5%, net_pnl=80.22, avg_hold=200.6m
+  2025-08-30: trades=10, wins=2, win_rate=20.0%, net_pnl=-37.33, avg_hold=372.0m
+  2025-08-31: trades=18, wins=14, win_rate=77.8%, net_pnl=5.57, avg_hold=541.7m
+  2025-09-01: trades=26, wins=17, win_rate=65.4%, net_pnl=87.39, avg_hold=195.6m
+  2025-09-02: trades=18, wins=15, win_rate=83.3%, net_pnl=103.41, avg_hold=181.7m
+  2025-09-03: trades=14, wins=12, win_rate=85.7%, net_pnl=105.87, avg_hold=323.6m
+  2025-09-04: trades=27, wins=21, win_rate=77.8%, net_pnl=116.41, avg_hold=262.2m
+  2025-09-05: trades=22, wins=13, win_rate=59.1%, net_pnl=66.29, avg_hold=186.8m
+  2025-09-06: trades=4, wins=2, win_rate=50.0%, net_pnl=-1.53, avg_hold=637.5m
+  2025-09-07: trades=21, wins=7, win_rate=33.3%, net_pnl=-35.97, avg_hold=729.3m
+  2025-09-08: trades=24, wins=9, win_rate=37.5%, net_pnl=-46.25, avg_hold=713.1m
+  2025-09-09: trades=31, wins=27, win_rate=87.1%, net_pnl=234.88, avg_hold=264.7m
+  2025-09-10: trades=21, wins=15, win_rate=71.4%, net_pnl=38.14, avg_hold=318.6m
+  2025-09-11: trades=18, wins=7, win_rate=38.9%, net_pnl=-21.20, avg_hold=401.7m
+  2025-09-12: trades=23, wins=22, win_rate=95.7%, net_pnl=137.37, avg_hold=525.0m
+  2025-09-13: trades=10, wins=2, win_rate=20.0%, net_pnl=-49.00, avg_hold=715.5m
+  2025-09-14: trades=19, wins=9, win_rate=47.4%, net_pnl=-57.88, avg_hold=645.8m
+  2025-09-15: trades=29, wins=19, win_rate=65.5%, net_pnl=66.54, avg_hold=594.8m
+  2025-09-16: trades=18, wins=6, win_rate=33.3%, net_pnl=-37.70, avg_hold=270.0m
+  2025-09-17: trades=31, wins=10, win_rate=32.3%, net_pnl=-109.74, avg_hold=356.1m
+  2025-09-18: trades=9, wins=4, win_rate=44.4%, net_pnl=-23.04, avg_hold=606.7m
+  2025-09-19: trades=21, wins=8, win_rate=38.1%, net_pnl=-14.89, avg_hold=474.3m
+  2025-09-20: trades=10, wins=0, win_rate=0.0%, net_pnl=-72.73, avg_hold=544.5m
+  2025-09-21: trades=7, wins=1, win_rate=14.3%, net_pnl=-37.05, avg_hold=1497.9m
+  2025-09-22: trades=48, wins=32, win_rate=66.7%, net_pnl=133.24, avg_hold=1088.1m
+  2025-09-23: trades=13, wins=8, win_rate=61.5%, net_pnl=37.25, avg_hold=544.6m
+  2025-09-24: trades=22, wins=12, win_rate=54.5%, net_pnl=-21.05, avg_hold=312.3m
+  2025-09-25: trades=30, wins=18, win_rate=60.0%, net_pnl=38.36, avg_hold=246.5m
+  2025-09-26: trades=9, wins=4, win_rate=44.4%, net_pnl=-24.42, avg_hold=360.0m
+  2025-09-28: trades=50, wins=26, win_rate=52.0%, net_pnl=22.33, avg_hold=842.4m
+  2025-09-29: trades=12, wins=7, win_rate=58.3%, net_pnl=35.21, avg_hold=515.0m
+  2025-09-30: trades=20, wins=16, win_rate=80.0%, net_pnl=63.49, avg_hold=423.0m
+  2025-10-01: trades=16, wins=10, win_rate=62.5%, net_pnl=37.27, avg_hold=285.0m
+  2025-10-02: trades=14, wins=12, win_rate=85.7%, net_pnl=84.79, avg_hold=259.3m
+  2025-10-03: trades=21, wins=16, win_rate=76.2%, net_pnl=113.09, avg_hold=224.3m
+  2025-10-04: trades=18, wins=9, win_rate=50.0%, net_pnl=-45.87, avg_hold=669.2m
+  2025-10-05: trades=22, wins=13, win_rate=59.1%, net_pnl=100.87, avg_hold=427.5m
+  2025-10-06: trades=15, wins=8, win_rate=53.3%, net_pnl=29.92, avg_hold=370.0m
+  2025-10-07: trades=23, wins=19, win_rate=82.6%, net_pnl=69.51, avg_hold=280.4m
+  2025-10-08: trades=14, wins=6, win_rate=42.9%, net_pnl=-22.53, avg_hold=161.8m
+  2025-10-09: trades=23, wins=22, win_rate=95.7%, net_pnl=197.21, avg_hold=206.1m
+  2025-10-10: trades=18, wins=12, win_rate=66.7%, net_pnl=95.77, avg_hold=199.2m
+  2025-10-11: trades=12, wins=7, win_rate=58.3%, net_pnl=4.51, avg_hold=342.5m
+  2025-10-12: trades=18, wins=5, win_rate=27.8%, net_pnl=-67.42, avg_hold=252.5m
+  2025-10-13: trades=16, wins=12, win_rate=75.0%, net_pnl=52.84, avg_hold=167.8m
+  2025-10-14: trades=29, wins=11, win_rate=37.9%, net_pnl=-53.57, avg_hold=94.7m
+  2025-10-15: trades=21, wins=11, win_rate=52.4%, net_pnl=-6.15, avg_hold=150.7m
+  2025-10-16: trades=21, wins=6, win_rate=28.6%, net_pnl=-52.90, avg_hold=170.7m
+  2025-10-17: trades=17, wins=12, win_rate=70.6%, net_pnl=105.10, avg_hold=105.9m
+  2025-10-18: trades=4, wins=1, win_rate=25.0%, net_pnl=-19.34, avg_hold=311.2m
+  2025-10-19: trades=29, wins=11, win_rate=37.9%, net_pnl=-31.83, avg_hold=581.9m
+  2025-10-20: trades=2, wins=2, win_rate=100.0%, net_pnl=19.16, avg_hold=255.0m
+
+Weekly Performance (week starting Monday):
+  2025-01-06 → 2025-01-12: trades=115, wins=78, win_rate=67.8%, net_pnl=305.32, avg_hold=257.6m
+  2025-01-13 → 2025-01-19: trades=120, wins=80, win_rate=66.7%, net_pnl=392.52, avg_hold=168.1m
+  2025-01-20 → 2025-01-26: trades=138, wins=84, win_rate=60.9%, net_pnl=333.93, avg_hold=314.0m
+  2025-01-27 → 2025-02-02: trades=123, wins=81, win_rate=65.9%, net_pnl=213.94, avg_hold=228.2m
+  2025-02-03 → 2025-02-09: trades=142, wins=83, win_rate=58.5%, net_pnl=272.38, avg_hold=199.9m
+  2025-02-10 → 2025-02-16: trades=129, wins=59, win_rate=45.7%, net_pnl=43.36, avg_hold=424.9m
+  2025-02-17 → 2025-02-23: trades=135, wins=74, win_rate=54.8%, net_pnl=106.20, avg_hold=391.9m
+  2025-02-24 → 2025-03-02: trades=148, wins=103, win_rate=69.6%, net_pnl=695.94, avg_hold=185.4m
+  2025-03-03 → 2025-03-09: trades=113, wins=63, win_rate=55.8%, net_pnl=176.51, avg_hold=137.4m
+  2025-03-10 → 2025-03-16: trades=123, wins=77, win_rate=62.6%, net_pnl=402.53, avg_hold=177.3m
+  2025-03-17 → 2025-03-23: trades=129, wins=70, win_rate=54.3%, net_pnl=147.93, avg_hold=328.7m
+  2025-03-24 → 2025-03-30: trades=141, wins=91, win_rate=64.5%, net_pnl=304.53, avg_hold=219.8m
+  2025-03-31 → 2025-04-06: trades=139, wins=86, win_rate=61.9%, net_pnl=350.57, avg_hold=203.3m
+  2025-04-07 → 2025-04-13: trades=118, wins=70, win_rate=59.3%, net_pnl=361.68, avg_hold=112.8m
+  2025-04-14 → 2025-04-20: trades=119, wins=64, win_rate=53.8%, net_pnl=88.04, avg_hold=453.9m
+  2025-04-21 → 2025-04-27: trades=107, wins=61, win_rate=57.0%, net_pnl=128.75, avg_hold=258.4m
+  2025-04-28 → 2025-05-04: trades=132, wins=84, win_rate=63.6%, net_pnl=295.44, avg_hold=332.5m
+  2025-05-05 → 2025-05-11: trades=135, wins=93, win_rate=68.9%, net_pnl=328.35, avg_hold=247.6m
+  2025-05-12 → 2025-05-18: trades=123, wins=69, win_rate=56.1%, net_pnl=7.88, avg_hold=315.1m
+  2025-05-19 → 2025-05-25: trades=140, wins=90, win_rate=64.3%, net_pnl=397.03, avg_hold=201.1m
+  2025-05-26 → 2025-06-01: trades=119, wins=74, win_rate=62.2%, net_pnl=154.90, avg_hold=320.9m
+  2025-06-02 → 2025-06-08: trades=128, wins=68, win_rate=53.1%, net_pnl=134.64, avg_hold=305.6m
+  2025-06-09 → 2025-06-15: trades=132, wins=72, win_rate=54.5%, net_pnl=130.71, avg_hold=350.3m
+  2025-06-16 → 2025-06-22: trades=155, wins=97, win_rate=62.6%, net_pnl=335.10, avg_hold=252.4m
+  2025-06-23 → 2025-06-29: trades=137, wins=77, win_rate=56.2%, net_pnl=118.60, avg_hold=562.8m
+  2025-06-30 → 2025-07-06: trades=142, wins=59, win_rate=41.5%, net_pnl=-153.20, avg_hold=526.4m
+  2025-07-07 → 2025-07-13: trades=103, wins=61, win_rate=59.2%, net_pnl=124.27, avg_hold=377.2m
+  2025-07-14 → 2025-07-20: trades=163, wins=99, win_rate=60.7%, net_pnl=341.83, avg_hold=373.5m
+  2025-07-21 → 2025-07-27: trades=126, wins=75, win_rate=59.5%, net_pnl=255.98, avg_hold=300.5m
+  2025-07-28 → 2025-08-03: trades=146, wins=94, win_rate=64.4%, net_pnl=361.23, avg_hold=345.4m
+  2025-08-04 → 2025-08-10: trades=148, wins=79, win_rate=53.4%, net_pnl=134.34, avg_hold=353.0m
+  2025-08-11 → 2025-08-17: trades=120, wins=64, win_rate=53.3%, net_pnl=77.88, avg_hold=385.6m
+  2025-08-18 → 2025-08-24: trades=144, wins=83, win_rate=57.6%, net_pnl=236.01, avg_hold=364.3m
+  2025-08-25 → 2025-08-31: trades=127, wins=85, win_rate=66.9%, net_pnl=295.90, avg_hold=277.4m
+  2025-09-01 → 2025-09-07: trades=132, wins=87, win_rate=65.9%, net_pnl=441.87, avg_hold=317.7m
+  2025-09-08 → 2025-09-14: trades=146, wins=91, win_rate=62.3%, net_pnl=236.06, avg_hold=484.5m
+  2025-09-15 → 2025-09-21: trades=125, wins=48, win_rate=38.4%, net_pnl=-228.61, avg_hold=516.0m
+  2025-09-22 → 2025-09-28: trades=172, wins=100, win_rate=58.1%, net_pnl=185.71, avg_hold=691.5m
+  2025-09-29 → 2025-10-05: trades=123, wins=83, win_rate=67.5%, net_pnl=388.85, avg_hold=398.3m
+  2025-10-06 → 2025-10-12: trades=123, wins=79, win_rate=64.2%, net_pnl=306.97, avg_hold=254.0m
+  2025-10-13 → 2025-10-19: trades=137, wins=64, win_rate=46.7%, net_pnl=-5.85, avg_hold=234.3m
+  2025-10-20 → 2025-10-26: trades=2, wins=2, win_rate=100.0%, net_pnl=19.16, avg_hold=255.0m
+
+Monthly Performance:
+  2025-01: trades=457, wins=293, win_rate=64.1%, net_pnl=1157.75, avg_hold=244.3m
+  2025-02: trades=555, wins=328, win_rate=59.1%, net_pnl=1101.89, avg_hold=298.6m
+  2025-03: trades=561, wins=328, win_rate=58.5%, net_pnl=1077.79, avg_hold=214.0m
+  2025-04: trades=527, wins=319, win_rate=60.5%, net_pnl=1179.22, avg_hold=259.1m
+  2025-05: trades=564, wins=347, win_rate=61.5%, net_pnl=946.35, avg_hold=275.5m
+  2025-06: trades=594, wins=343, win_rate=57.7%, net_pnl=771.51, avg_hold=371.2m
+  2025-07: trades=609, wins=340, win_rate=55.8%, net_pnl=725.75, avg_hold=393.5m
+  2025-08: trades=592, wins=349, win_rate=59.0%, net_pnl=940.76, avg_hold=341.5m
+  2025-09: trades=607, wins=349, win_rate=57.5%, net_pnl=733.73, avg_hold=512.0m
+  2025-10: trades=353, wins=205, win_rate=58.1%, net_pnl=610.43, avg_hold=278.2m
+
+Confidence Buckets:
+  90-100%: trades=1026, wins=831, win_rate=81.0%, net_pnl=6189.40
+  60-72%: trades=538, wins=241, win_rate=44.8%, net_pnl=-291.87
+  72-75%: trades=1205, wins=566, win_rate=47.0%, net_pnl=-499.43
+  77-80%: trades=695, wins=364, win_rate=52.4%, net_pnl=238.41
+  80-85%: trades=1024, wins=582, win_rate=56.8%, net_pnl=1193.40
+  85-90%: trades=931, wins=617, win_rate=66.3%, net_pnl=2415.27

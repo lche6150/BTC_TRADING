@@ -74,7 +74,7 @@ def evaluate(model, scaler, meta, df: pd.DataFrame) -> dict[str, float]:
     sequence_length = meta["sequence_length"]
     features = features.dropna(subset=available_features)
 
-    future_periods = 6
+    future_periods = 20
 
     label_series = generate_stop_aligned_labels(features, future_periods=future_periods)
     mask = label_series != -1

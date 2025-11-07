@@ -1,5 +1,5 @@
 {
-  "min_confidence": 0.6,
+  "min_confidence": 0.76,
   "position_sizes": {
     "low": 0.015,
     "medium": 0.03,

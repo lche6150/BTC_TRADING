@@ -11,7 +11,7 @@ import pandas as pd
 
 def generate_stop_aligned_labels(
     features: pd.DataFrame,
-    future_periods: int = 6,
+    future_periods: int = 20,
     stop_low: float = 0.003,
     stop_high: float = 0.02,
     target_multiplier: float = 1.75,
