@@ -41,11 +41,14 @@ from scripts.gap_test_real_data import (
 )
 from live_trader.model_loader import GRUSignalModel
 from src.models.stop_aligned_labeler import generate_stop_aligned_labels
+from src.utils.artifacts import get_gru_backtest_dir, get_gru_signal_dir
 import pickle
 
 DEFAULT_LOG_FILENAME = "trading_log.txt"
 DEFAULT_FIGURE_FILENAME = "Figure_1.png"
 BACKTEST_RESULTS_ROOT = Path("results/backtests")
+DEFAULT_SYMBOL = "BTCUSDT"
+DEFAULT_INTERVAL = "15m"
 
 MODEL_FEATURES = [
     'rsi_14', 'rsi_14_1h', 'rsi_14_4h',
@@ -58,9 +61,9 @@ MODEL_FEATURES = [
 ]
 
 
-def _purge_gru_backtest_artifacts() -> None:
+def _purge_gru_backtest_artifacts(symbol: str = DEFAULT_SYMBOL) -> None:
     """Remove cached GRU artifacts so each backtest retrains from scratch."""
-    artifacts_dir = Path('models/gru_backtest')
+    artifacts_dir = get_gru_backtest_dir(symbol)
     if artifacts_dir.exists():
         shutil.rmtree(artifacts_dir)
 
@@ -73,7 +76,12 @@ def _to_timestamp_ms(date_str: str, inclusive_end: bool = False) -> int:
     return int(dt.timestamp() * 1000)
 
 
-def load_backtest_data(start_date: str, end_date: str) -> pd.DataFrame:
+def load_backtest_data(
+    start_date: str,
+    end_date: str,
+    symbol: str = DEFAULT_SYMBOL,
+    interval: str = DEFAULT_INTERVAL,
+) -> pd.DataFrame:
     """Load backtest data between start_date and end_date (inclusive)."""
     print("📊 Loading backtest data...")
 
@@ -86,15 +94,17 @@ def load_backtest_data(start_date: str, end_date: str) -> pd.DataFrame:
     query = """
     SELECT timestamp, open, high, low, close, volume
     FROM ohlcv_data
-    WHERE timestamp >= ? AND timestamp <= ?
+    WHERE symbol = ? AND interval_type = ? AND timestamp >= ? AND timestamp <= ?
     ORDER BY timestamp
     """
 
-    data = pd.read_sql_query(query, conn, params=(start_ms, end_ms))
+    data = pd.read_sql_query(query, conn, params=(symbol, interval, start_ms, end_ms))
     conn.close()
 
     if data.empty:
-        raise ValueError(f"No OHLCV records found between {start_date} and {end_date}")
+        raise ValueError(
+            f"No OHLCV records found for {symbol} between {start_date} and {end_date}"
+        )
 
     # Convert timestamps and prepare features
     data['datetime'] = pd.to_datetime(data['timestamp'], unit='ms')
@@ -124,7 +134,7 @@ def retrain_gru_model_until(cutoff_datetime: datetime,
 
     cutoff = pd.to_datetime(cutoff_datetime)
 
-    artifacts_dir = Path('models/gru_backtest')
+    artifacts_dir = get_gru_backtest_dir(symbol)
     model_path = artifacts_dir / 'model.keras'
     scaler_path = artifacts_dir / 'scaler.pkl'
     meta_path = artifacts_dir / 'meta.json'
@@ -224,6 +234,7 @@ def retrain_gru_model_until(cutoff_datetime: datetime,
 def _train_gru_and_predict(
     start_date: str,
     end_date: str,
+    symbol: str = DEFAULT_SYMBOL,
     artifacts_path: Optional[Path] = None,
 ) -> tuple[pd.DataFrame, Dict[str, float]]:
     """Prepare GRU predictions either by loading artifacts or retraining in-memory."""
@@ -237,7 +248,7 @@ def _train_gru_and_predict(
         raise FileNotFoundError(f"Model artifacts directory not found: {artifacts_dir}")
 
     db = TradingDatabase()
-    df = db.get_ohlcv_data("BTCUSDT", "15m")
+    df = db.get_ohlcv_data(symbol, DEFAULT_INTERVAL)
     if df.empty:
         raise ValueError("No OHLCV data available in database")
 
@@ -447,6 +458,7 @@ def generate_signals_with_tracking(
     data: pd.DataFrame,
     start_date: str,
     end_date: str,
+    symbol: str = DEFAULT_SYMBOL,
     artifacts_path: Optional[Path] = None,
     predictions: Optional[pd.DataFrame] = None,
     cached_metrics: Optional[Dict[str, float]] = None,
@@ -457,6 +469,7 @@ def generate_signals_with_tracking(
         predictions_df, model_metrics = _train_gru_and_predict(
             start_date,
             end_date,
+            symbol=symbol,
             artifacts_path=artifacts_path,
         )
     else:
@@ -729,7 +742,7 @@ def create_trading_log(trade_pairs,
             exit_fees = sum(close.get('exit_fee', 0.0) for close in closes)
             fees = entry_fee + exit_fees
             net_after_all_fees = net_exit_pnl - entry_fee
-            gross_pnl = net_exit_pnl + fees
+            gross_pnl = net_exit_pnl + exit_fees  # add back only exit fees to show pre-fee P&L
 
             total_net_after_all += net_after_all_fees
             total_fees += fees
@@ -1230,17 +1243,20 @@ def main():
     parser.add_argument('--log', dest='log_path', default=DEFAULT_LOG_FILENAME, help='Path to save trading log output')
     parser.add_argument('--figure', dest='figure_path', default=DEFAULT_FIGURE_FILENAME, help='Path to save generated figure')
     parser.add_argument('--config', dest='config_path', help='Optional JSON file specifying trading-system parameters')
+    parser.add_argument('--symbol', default=DEFAULT_SYMBOL, help='Trading symbol (default BTCUSDT)')
     parser.add_argument(
         '--artifacts',
         dest='artifacts_path',
         help='Optional directory containing pretrained GRU artifacts (model.keras, scaler.pkl, meta.json)',
     )
     args = parser.parse_args()
+    symbol = args.symbol.upper()
+    print(f"Symbol: {symbol}")
 
     # Organize outputs inside a dedicated backtest subdirectory when using defaults
     start_label = args.start_date.replace('-', '')
     end_label = args.end_date.replace('-', '')
-    backtest_dir = BACKTEST_RESULTS_ROOT / f"{start_label}_to_{end_label}"
+    backtest_dir = BACKTEST_RESULTS_ROOT / symbol / f"{start_label}_to_{end_label}"
 
     log_path = Path(args.log_path)
     figure_path = Path(args.figure_path)
@@ -1269,13 +1285,14 @@ def main():
     success = False
     try:
         # Load data and generate signals
-        data = load_backtest_data(args.start_date, args.end_date)
+        data = load_backtest_data(args.start_date, args.end_date, symbol=symbol)
         if artifacts_path is None:
-            _purge_gru_backtest_artifacts()
+            _purge_gru_backtest_artifacts(symbol)
         data, model_metrics = generate_signals_with_tracking(
             data,
             args.start_date,
             args.end_date,
+            symbol=symbol,
             artifacts_path=artifacts_path,
         )
 
@@ -1366,7 +1383,7 @@ def main():
         success = False
     finally:
         if artifacts_path is None:
-            _purge_gru_backtest_artifacts()
+            _purge_gru_backtest_artifacts(symbol)
 
     return success
 

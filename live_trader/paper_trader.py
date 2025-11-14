@@ -29,11 +29,11 @@ from src.data.features import EnhancedFeatureEngine
 from src.data.database import TradingDatabase
 from live_trader.model_loader import GRUSignalModel
 from trading_backtest import MODEL_FEATURES, retrain_gru_model_until
+from src.utils.artifacts import get_gru_backtest_dir, get_gru_signal_dir
 
 DEFAULT_SYMBOL = "BTCUSDT"
 DEFAULT_INTERVAL = "15m"
 DEFAULT_LOOKBACK_DAYS = 20
-MAX_HISTORY_ROWS = 6000
 EVALUATION_WINDOW_MINUTES = 90
 
 
@@ -255,13 +255,13 @@ def evaluate_pending_signals(
     pending_list[:] = remaining
 
 
-def sync_signal_model_artifacts() -> bool:
+def sync_signal_model_artifacts(symbol: str) -> bool:
     """
     Ensure paper trader model cache (models/gru_signal) exists by copying
     the latest backtest artifacts when available.
     """
-    source_dir = Path("models/gru_backtest")
-    target_dir = Path("models/gru_signal")
+    source_dir = get_gru_backtest_dir(symbol)
+    target_dir = get_gru_signal_dir(symbol)
 
     if not source_dir.exists():
         return False
@@ -462,27 +462,36 @@ def process_new_signal(system: ComprehensiveTradingSystem,
 
 def main() -> None:
     args = parse_args()
+    symbol = args.symbol.upper()
+    symbol_slug = symbol.lower()
+    interval = args.interval
 
     config = load_trading_config(args.config)
     system = ComprehensiveTradingSystem(initial_capital=20000.0, config=config)
 
-    results_dir = args.output.parent
+    default_output = Path("results/live_trading/paper_trades.log")
+    if args.output == default_output:
+        output_path = Path("results/live_trading") / symbol_slug / "paper_trades.log"
+    else:
+        output_path = args.output
+
+    results_dir = output_path.parent
     results_dir.mkdir(parents=True, exist_ok=True)
 
     run_timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    signal_log_path = results_dir / f"paper_log_{run_timestamp}.txt"
+    signal_log_path = results_dir / f"{symbol_slug}_paper_log_{run_timestamp}.txt"
     print(f"📝 Signal log: {signal_log_path}")
 
     client = get_client(args.testnet)
-    raw_df = fetch_initial_data(client, args.symbol, args.interval, args.lookback_days)
+    raw_df = fetch_initial_data(client, symbol, interval, args.lookback_days)
 
     # Store fetched klines in local database so retraining can access the latest data
-    upsert_initial_data(raw_df, args.symbol, args.interval)
+    upsert_initial_data(raw_df, symbol, interval)
 
     # Retrain GRU using all data available up to now before starting live loop
     cutoff = datetime.utcnow()
     try:
-        retrain_info = retrain_gru_model_until(cutoff, args.symbol, args.interval)
+        retrain_info = retrain_gru_model_until(cutoff, symbol, interval)
         print(
             f"🤖 GRU retrained with {retrain_info['samples']} sequences "
             f"(features: {retrain_info['available_features']}, sequence={retrain_info['sequence_length']})"
@@ -490,23 +499,24 @@ def main() -> None:
     except Exception as exc:
         print(f"⚠️ GRU retraining skipped due to: {exc}\n   Using previously cached model artifacts.")
 
-    if sync_signal_model_artifacts():
-        print("📦 Updated paper trader model cache (models/gru_signal) with latest artifacts.")
+    if sync_signal_model_artifacts(symbol):
+        print(f"📦 Updated paper trader model cache ({get_gru_signal_dir(symbol)}) with latest artifacts.")
     else:
-        signal_model_path = Path("models/gru_signal/model.keras")
+        signal_model_path = get_gru_signal_dir(symbol) / "model.keras"
         if not signal_model_path.exists():
-            print("⚠️ Paper trader model cache not found. Run a backtest or copy artifacts to models/gru_signal.")
+            print(f"⚠️ Paper trader model cache not found at {signal_model_path}. Run a backtest or copy artifacts there.")
 
-    model = GRUSignalModel()
+    model = GRUSignalModel(model_dir=get_gru_signal_dir(symbol))
     feature_engine = EnhancedFeatureEngine(performance_mode=True)
     raw_df = enrich_base_features(raw_df)
+    feature_df = prepare_feature_dataframe(raw_df.copy(), feature_engine)
 
     last_processed_ts = None
     decision_threshold = model.best_threshold
     iteration = 0
     pending_evaluations: List[Dict[str, Any]] = []
 
-    log_file = args.output.open('a') if args.output else None
+    log_file = output_path.open('a') if output_path else None
 
     try:
         while True:
@@ -520,7 +530,7 @@ def main() -> None:
 
             new_start_ms = (last_processed_ts or int(raw_df['open_time'].iloc[-1])) + 1
             new_klines, delayed_fetch = fetch_new_klines(
-                client, args.symbol, args.interval, new_start_ms
+                client, symbol, interval, new_start_ms
             )
 
             if not new_klines.empty:
@@ -529,10 +539,10 @@ def main() -> None:
                 if new_klines.empty:
                     time.sleep(args.sleep)
                     continue
-                upsert_initial_data(new_klines, args.symbol, args.interval)
+                upsert_initial_data(new_klines, symbol, interval)
                 raw_df = pd.concat([raw_df, new_klines], ignore_index=True)
                 raw_df = enrich_base_features(raw_df)
-                raw_df = raw_df.iloc[-MAX_HISTORY_ROWS:]
+                feature_df = prepare_feature_dataframe(raw_df.copy(), feature_engine)
 
                 if delayed_fetch:
                     last_processed_ts = int(raw_df['open_time'].iloc[-1])
@@ -563,7 +573,6 @@ def main() -> None:
                     time.sleep(args.sleep)
                     continue
 
-            feature_df = prepare_feature_dataframe(raw_df.copy(), feature_engine)
             predictions = model.predict_series(feature_df, limit=500)
             if not predictions:
                 print("等待更多数据以满足序列长度要求...")

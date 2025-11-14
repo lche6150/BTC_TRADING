@@ -1,0 +1,25 @@
+{
+  "match": false,
+  "differences": {
+    "portfolio_value": {
+      "backtest": 21014.99658537007,
+      "paper": 20997.364996900178
+    },
+    "realized_pnl": {
+      "backtest": 1014.9965853700705,
+      "paper": 997.3649969001781
+    },
+    "total_trades": {
+      "backtest": 341,
+      "paper": 441
+    },
+    "winning_trades": {
+      "backtest": 211.5,
+      "paper": 260.0
+    },
+    "win_rate": {
+      "backtest": 0.6202346041055719,
+      "paper": 0.5895691609977324
+    }
+  }
+}

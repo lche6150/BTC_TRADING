@@ -85,10 +85,10 @@ class GRUSignalModel:
         values = subset.values
         sequences = []
         indices = []
-        for idx in range(self.sequence_length, len(values) + 1):
+        for idx in range(self.sequence_length, len(values)):
             seq = values[idx - self.sequence_length: idx]
             sequences.append(seq)
-            indices.append(subset.index[idx - 1])
+            indices.append(subset.index[idx])
 
         if not sequences:
             return None

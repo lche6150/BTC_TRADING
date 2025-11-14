@@ -273,10 +273,26 @@ def add_confidence_sample(bucket_map, confidence: Optional[float], net_pnl: floa
         key = "60-70%"
     elif confidence < 0.75:
         key = "70-75%"
+    elif confidence < 0.76:
+        key = "75-76%"
+    elif confidence < 0.77:
+        key = "76-77%"
+    elif confidence < 0.78:
+        key = "77-78%"
+    elif confidence < 0.79:
+        key = "78-79%"
     elif confidence < 0.8:
-        key = "75-80%"
+        key = "79-80%"
+    elif confidence < 0.81:
+        key = "80-81%"
+    elif confidence < 0.82:
+        key = "81-82%"
+    elif confidence < 0.83:
+        key = "82-83%"
+    elif confidence < 0.84:
+        key = "83-84%"
     elif confidence < 0.85:
-        key = "80-85%"
+        key = "84-85%"
     elif confidence < 0.9:
         key = "85-90%"
     else:

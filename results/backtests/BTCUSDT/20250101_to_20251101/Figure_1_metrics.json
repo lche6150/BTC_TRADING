@@ -1,0 +1,18 @@
+{
+  "portfolio_value": 30619.961935341184,
+  "total_return": 0.5309980967670592,
+  "realized_pnl": 10619.961935341184,
+  "unrealized_pnl": 0,
+  "total_trades": 4497,
+  "winning_trades": 2697.5,
+  "win_rate": 0.5998443406715588,
+  "active_positions": 0,
+  "daily_pnl": 10619.961935341387,
+  "current_drawdown": 0,
+  "risk_controls": {
+    "drawdown_5pct": false,
+    "drawdown_10pct": false,
+    "trading_halted": false
+  },
+  "daily_trade_count": 4497
+}

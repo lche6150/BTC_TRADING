@@ -47,6 +47,7 @@ from trading_backtest import (  # noqa: E402
     retrain_gru_model_until,
     _purge_gru_backtest_artifacts,
 )
+from src.utils.artifacts import get_gru_backtest_dir, get_gru_signal_dir
 
 DEFAULT_SYMBOL = "BTCUSDT"
 DEFAULT_INTERVAL = "15m"
@@ -273,9 +274,9 @@ def evaluate_pending_signals(
     pending_list[:] = remaining
 
 
-def sync_signal_model_artifacts() -> bool:
-    source_dir = Path("models/gru_backtest")
-    target_dir = Path("models/gru_signal")
+def sync_signal_model_artifacts(symbol: str) -> bool:
+    source_dir = get_gru_backtest_dir(symbol)
+    target_dir = get_gru_signal_dir(symbol)
 
     if not source_dir.exists():
         return False
@@ -529,6 +530,7 @@ def write_summary(summary_path: Path, system: ComprehensiveTradingSystem) -> Non
 
 def main() -> None:
     args = parse_args()
+    symbol = args.symbol.upper()
     dry_run = not args.live if not args.dry_run else True
     if args.live:
         dry_run = False
@@ -545,14 +547,14 @@ def main() -> None:
 
     testnet_flag = dry_run or os.getenv("BINANCE_TESTNET", "true").lower() == "true"
     client = get_client(testnet=testnet_flag)
-    raw_df = fetch_initial_data(client, args.symbol, args.interval, args.lookback_days)
+    raw_df = fetch_initial_data(client, symbol, args.interval, args.lookback_days)
 
-    upsert_initial_data(raw_df, args.symbol, args.interval)
+    upsert_initial_data(raw_df, symbol, args.interval)
 
-    _purge_gru_backtest_artifacts()
+    _purge_gru_backtest_artifacts(symbol)
     cutoff = datetime.utcnow()
     try:
-        retrain_info = retrain_gru_model_until(cutoff, args.symbol, args.interval)
+        retrain_info = retrain_gru_model_until(cutoff, symbol, args.interval)
         print(
             f"🤖 GRU retrained with {retrain_info['samples']} sequences "
             f"(features: {retrain_info['available_features']}, sequence={retrain_info['sequence_length']})"
@@ -561,10 +563,10 @@ def main() -> None:
         print(f"⚠️ GRU retraining failed: {exc}")
         raise
 
-    if not sync_signal_model_artifacts():
+    if not sync_signal_model_artifacts(symbol):
         raise RuntimeError("Failed to sync GRU artifacts for live trading.")
 
-    model = GRUSignalModel()
+    model = GRUSignalModel(model_dir=get_gru_signal_dir(symbol))
     feature_engine = EnhancedFeatureEngine(performance_mode=True)
     raw_df = enrich_base_features(raw_df)
 
@@ -580,7 +582,7 @@ def main() -> None:
 
     api = None
     if not dry_run:
-        api = BinanceSpotTradingAPI(symbol=args.symbol, testnet=testnet_flag)
+        api = BinanceSpotTradingAPI(symbol=symbol, testnet=testnet_flag)
         print("🚀 Live spot trading enabled – orders will be sent to Binance.")
     else:
         print("🧪 Dry-run mode: no orders will be sent (testnet data only).")
@@ -596,7 +598,7 @@ def main() -> None:
 
             new_start_ms = (last_processed_ts or int(raw_df["open_time"].iloc[-1])) + 1
             new_klines, delayed_fetch = fetch_new_klines(
-                client, args.symbol, args.interval, new_start_ms
+                client, symbol, args.interval, new_start_ms
             )
 
             if not new_klines.empty:
@@ -605,7 +607,7 @@ def main() -> None:
                 if new_klines.empty:
                     time.sleep(args.sleep)
                     continue
-                upsert_initial_data(new_klines, args.symbol, args.interval)
+                upsert_initial_data(new_klines, symbol, args.interval)
                 raw_df = pd.concat([raw_df, new_klines], ignore_index=True)
                 raw_df = enrich_base_features(raw_df)
                 raw_df = raw_df.iloc[-MAX_HISTORY_ROWS:]

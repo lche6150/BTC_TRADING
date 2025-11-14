@@ -42,6 +42,7 @@ from trading_backtest import (
     generate_signals_with_tracking,
     run_trading_simulation_with_tracking,
     _train_gru_and_predict,
+    DEFAULT_SYMBOL,
 )
 from src.trading.confidence_trading_system import ComprehensiveTradingSystem
 
@@ -88,10 +89,12 @@ def main() -> None:
                         help='Path to append grid search log')
     parser.add_argument('--overwrite', action='store_true', help='Overwrite log file instead of appending')
     parser.add_argument('--verbose', action='store_true', help='Print detailed progress for each run')
+    parser.add_argument('--symbol', default=DEFAULT_SYMBOL, help='Trading symbol (default BTCUSDT)')
 
     args = parser.parse_args()
 
     param_grid = load_param_grid(args.grid_config) if args.grid_config else DEFAULT_PARAM_GRID
+    symbol = args.symbol.upper()
 
     keys = list(param_grid.keys())
     value_lists = [param_grid[k] for k in keys]
@@ -114,12 +117,13 @@ def main() -> None:
     log_file.flush()
 
     # Load data once and reuse across runs (columns remain constant)
-    data = load_backtest_data(args.start_date, args.end_date)
-    predictions_df, model_metrics = _train_gru_and_predict(args.start_date, args.end_date)
+    data = load_backtest_data(args.start_date, args.end_date, symbol=symbol)
+    predictions_df, model_metrics = _train_gru_and_predict(args.start_date, args.end_date, symbol=symbol)
     data, _ = generate_signals_with_tracking(
         data.copy(),
         args.start_date,
         args.end_date,
+        symbol=symbol,
         predictions=predictions_df,
         cached_metrics=model_metrics,
     )
